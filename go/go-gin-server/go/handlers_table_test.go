@@ -19,6 +19,7 @@ type mockStore struct {
 	findPetsByStatus func(context.Context, []string) ([]Pet, error)
 	findPetsByTags   func(context.Context, []string) ([]Pet, error)
 	updatePetFields  func(context.Context, int64, *string, *string) (bool, error)
+	savePetPhoto     func(context.Context, int64, []byte, string, string) error
 	inventory        func(context.Context) (map[string]int32, error)
 	createOrder      func(context.Context, Order) (Order, error)
 	getOrderByID     func(context.Context, int64) (Order, error)
@@ -80,6 +81,13 @@ func (m *mockStore) UpdatePetFields(ctx context.Context, id int64, name *string,
 		return m.updatePetFields(ctx, id, name, status)
 	}
 	return true, nil
+}
+
+func (m *mockStore) SavePetPhoto(ctx context.Context, petID int64, content []byte, contentType string, metadata string) error {
+	if m.savePetPhoto != nil {
+		return m.savePetPhoto(ctx, petID, content, contentType, metadata)
+	}
+	return nil
 }
 
 func (m *mockStore) Inventory(ctx context.Context) (map[string]int32, error) {

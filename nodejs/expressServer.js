@@ -30,6 +30,7 @@ class ExpressServer {
     this.app.use(cors());
     this.app.use(bodyParser.json({ limit: '14MB' }));
     this.app.use(express.json());
+    this.app.use(express.raw({ type: 'application/octet-stream', limit: '14MB' }));
     this.app.use(express.urlencoded({ extended: false }));
     this.app.use(cookieParser());
     // Simple test to see that the server is up and responding

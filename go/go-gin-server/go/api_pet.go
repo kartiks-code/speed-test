@@ -170,6 +170,10 @@ func (api *PetAPI) UploadFile(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if err := api.Store.SavePetPhoto(c.Request.Context(), id, body, "application/octet-stream", c.Query("additionalMetadata")); err != nil {
+		handleStoreError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, ApiResponse{
 		Code:    http.StatusOK,
 		Type:    "upload",

@@ -75,6 +75,8 @@ class Controller {
       if (content['application/json'] !== undefined) {
         const requestBodyName = camelCase(this.getRequestBodyName(request));
         requestParams[requestBodyName] = request.body;
+      } else if (content['application/octet-stream'] !== undefined) {
+        requestParams.body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
       } else if (content['multipart/form-data'] !== undefined) {
         Object.keys(content['multipart/form-data'].schema.properties).forEach(
           (property) => {

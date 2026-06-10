@@ -84,6 +84,7 @@ All implementations must behave identically. When changing or testing any server
 ## Conventions for Agents
 
 - After making changes, update the relevant `AGENTS.md` and `README` for the project or subproject the change was made for, so docs stay in sync with the code.
+- When asked to do something across all projects, parallelize the work across projects to the best extent possible (e.g. dispatch parallel agents per project) rather than working through them sequentially.
 - Don't update git config, and don't commit unless explicitly asked.
 - Keep `database/.env` and any credentials out of commits.
 - Make the smallest change that satisfies the request; when touching a single project, prefer its local `AGENTS.md` rules over generic assumptions.

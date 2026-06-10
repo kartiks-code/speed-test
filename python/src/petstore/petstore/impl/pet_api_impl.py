@@ -11,6 +11,16 @@ from petstore.models.pet import Pet
 from petstore.models.tag import Tag
 
 
+def _to_bytes(body: Optional[Union[bytes, str, Tuple[str, bytes]]]) -> bytes:
+    if body is None:
+        return b""
+    if isinstance(body, tuple):
+        body = body[1]
+    if isinstance(body, str):
+        return body.encode("utf-8")
+    return bytes(body)
+
+
 def _row_to_pet(row) -> Pet:
     category = None
     if row["category"] is not None:
@@ -200,6 +210,7 @@ class PetApiImpl(BasePetApi):
         additional_metadata: Optional[str],
         body: Optional[Union[bytes, str, Tuple[str, bytes]]],
     ) -> ApiResponse:
+        content = _to_bytes(body)
         pool = await get_pool()
         async with pool.acquire() as conn:
             exists = await conn.fetchval(
@@ -208,7 +219,21 @@ class PetApiImpl(BasePetApi):
             if not exists:
                 raise HTTPException(status_code=404, detail="Pet not found")
 
-        msg = f"File uploaded for pet {petId}"
+            await conn.execute(
+                """
+                INSERT INTO pet_photo (id, pet_id, content_type, metadata, content)
+                VALUES (
+                    (SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo),
+                    $1, $2, $3, $4
+                )
+                """,
+                petId,
+                "application/octet-stream",
+                additional_metadata,
+                content,
+            )
+
+        msg = f"File uploaded for pet {petId}, {len(content)} bytes"
         if additional_metadata:
             msg += f" ({additional_metadata})"
-        return ApiResponse(code=200, type="unknown", message=msg)
+        return ApiResponse(code=200, type="application/octet-stream", message=msg)

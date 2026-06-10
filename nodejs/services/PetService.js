@@ -79,13 +79,15 @@ const updatePetWithForm = ({ petId, name, status }) => new Promise(
   },
 );
 
-const uploadFile = ({ petId, additionalMetadata }) => new Promise(
+const uploadFile = ({ petId, additionalMetadata, body }) => new Promise(
   async (resolve, reject) => {
     try {
+      const content = Buffer.isBuffer(body) ? body : Buffer.alloc(0);
+      const size = await petRepo.addPhoto(petId, content, 'application/octet-stream', additionalMetadata || null);
       resolve(Service.successResponse({
         code: 200,
         type: 'application/octet-stream',
-        message: `File uploaded for pet ${petId}${additionalMetadata ? `, metadata: ${additionalMetadata}` : ''}`,
+        message: `File uploaded for pet ${petId}, ${size} bytes${additionalMetadata ? `, metadata: ${additionalMetadata}` : ''}`,
       }));
     } catch (e) {
       reject(Service.rejectResponse(e.message || 'Invalid input', e.status || 405));

@@ -118,6 +118,21 @@ const updateWithForm = async (petId, name, status) => {
   await query(`UPDATE pet SET ${sets.join(', ')} WHERE "id" = $${params.length}`, params);
 };
 
+const addPhoto = async (petId, content, contentType, metadata) => {
+  const exists = await query('SELECT 1 FROM pet WHERE "id" = $1', [petId]);
+  if (exists.rows.length === 0) {
+    const err = new Error('Pet not found');
+    err.status = 404;
+    throw err;
+  }
+  await query(
+    `INSERT INTO pet_photo ("id", pet_id, content_type, metadata, content)
+     VALUES ((SELECT COALESCE(MAX("id"), 0) + 1 FROM pet_photo), $1, $2, $3, $4)`,
+    [petId, contentType, metadata, content],
+  );
+  return content ? content.length : 0;
+};
+
 const getInventory = async () => {
   const result = await query(
     "SELECT status::text, cast(COUNT(*) as int) as cnt FROM pet GROUP BY status",
@@ -130,4 +145,6 @@ const getInventory = async () => {
   return inventory;
 };
 
-module.exports = { add, update, findById, deletePet, findByStatus, findByTags, updateWithForm, getInventory };
+module.exports = {
+  add, update, findById, deletePet, findByStatus, findByTags, updateWithForm, addPhoto, getInventory,
+};

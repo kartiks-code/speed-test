@@ -120,6 +120,23 @@ COMMENT ON COLUMN pet.photo_urls IS 'Original param name - photoUrls.';
 COMMENT ON COLUMN pet.status IS 'pet status in the store';
 
 --
+-- Table 'pet_photo' holds the actual binary image bytes uploaded via
+-- POST /pet/{petId}/uploadImage. Not part of the OpenAPI model set; added so the
+-- uploadFile operation persists real files instead of discarding them.
+--
+CREATE TABLE IF NOT EXISTS pet_photo (
+    "id" BIGINT PRIMARY KEY,
+    pet_id BIGINT NOT NULL,
+    content_type TEXT DEFAULT NULL,
+    metadata TEXT DEFAULT NULL,
+    content BYTEA NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+COMMENT ON TABLE pet_photo IS 'Binary image data uploaded for a pet.';
+COMMENT ON COLUMN pet_photo.pet_id IS 'Original param name - petId.';
+COMMENT ON COLUMN pet_photo.metadata IS 'Original param name - additionalMetadata.';
+
+--
 -- Table 'tag' generated from model 'Tag'
 --
 CREATE TABLE IF NOT EXISTS tag (
@@ -150,6 +167,8 @@ COMMENT ON COLUMN "user".user_status IS 'User Status. Original param name - user
 -- CRUD identity constraints
 --
 CREATE UNIQUE INDEX IF NOT EXISTS pet_id_unique_idx ON pet ("id");
+CREATE UNIQUE INDEX IF NOT EXISTS pet_photo_id_unique_idx ON pet_photo ("id");
+CREATE INDEX IF NOT EXISTS pet_photo_pet_id_idx ON pet_photo (pet_id);
 CREATE UNIQUE INDEX IF NOT EXISTS order_id_unique_idx ON "order" ("id");
 CREATE UNIQUE INDEX IF NOT EXISTS user_username_unique_idx ON "user" (username);
 

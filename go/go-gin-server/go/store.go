@@ -28,6 +28,7 @@ type Store interface {
 	FindPetsByStatus(context.Context, []string) ([]Pet, error)
 	FindPetsByTags(context.Context, []string) ([]Pet, error)
 	UpdatePetFields(context.Context, int64, *string, *string) (bool, error)
+	SavePetPhoto(context.Context, int64, []byte, string, string) error
 	Inventory(context.Context) (map[string]int32, error)
 	CreateOrder(context.Context, Order) (Order, error)
 	GetOrderByID(context.Context, int64) (Order, error)
@@ -158,6 +159,18 @@ func (s *PostgresStore) UpdatePetFields(ctx context.Context, id int64, name *str
 
 	result, err := s.db.ExecContext(ctx, "UPDATE pet SET "+strings.Join(sets, ", ")+" WHERE id = $"+strconv.Itoa(len(args)), args...)
 	return rowsAffected(result, err)
+}
+
+func (s *PostgresStore) SavePetPhoto(ctx context.Context, petID int64, content []byte, contentType string, metadata string) error {
+	var metadataArg any
+	if metadata != "" {
+		metadataArg = metadata
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO pet_photo (id, pet_id, content_type, metadata, content)
+		VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo), $1, $2, $3, $4)`,
+		petID, contentType, metadataArg, content)
+	return err
 }
 
 func (s *PostgresStore) Inventory(ctx context.Context) (map[string]int32, error) {
