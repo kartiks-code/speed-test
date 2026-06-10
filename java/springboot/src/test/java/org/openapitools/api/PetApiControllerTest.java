@@ -140,8 +140,11 @@ class PetApiControllerTest {
     }
 
     @Test
-    void uploadFileReportsByteCountAndMetadataWithoutPersisting() throws Exception {
+    void uploadFilePersistsBytesAndReportsByteCountAndMetadata() throws Exception {
         byte[] data = "hello".getBytes();
+        when(petStore.savePetPhoto(eq(1L), any(byte[].class), eq("application/octet-stream"), eq("note")))
+                .thenReturn(data.length);
+
         ResponseEntity<ModelApiResponse> response = controller.uploadFile(
                 1L, "note", new ByteArrayResource(data));
 
@@ -149,14 +152,16 @@ class PetApiControllerTest {
         ModelApiResponse body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.getCode()).isEqualTo(200);
-        assertThat(body.getType()).isEqualTo("unknown");
+        assertThat(body.getType()).isEqualTo("application/octet-stream");
         assertThat(body.getMessage()).isEqualTo("petId: 1, bytes: 5, additionalMetadata: note");
-        // uploadFile must not touch persistence (no binary storage).
-        verifyNoInteractions(petStore);
+        verify(petStore).savePetPhoto(eq(1L), any(byte[].class), eq("application/octet-stream"), eq("note"));
     }
 
     @Test
-    void uploadFileOmitsMetadataWhenBlankAndHandlesNoBody() {
+    void uploadFilePersistsEmptyContentWhenNoBody() {
+        when(petStore.savePetPhoto(eq(2L), any(byte[].class), eq("application/octet-stream"), eq("  ")))
+                .thenReturn(0);
+
         ResponseEntity<ModelApiResponse> response = controller.uploadFile(2L, "  ", null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

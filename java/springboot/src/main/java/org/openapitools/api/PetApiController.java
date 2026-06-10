@@ -75,18 +75,20 @@ public class PetApiController implements PetApi {
             Long petId,
             @Nullable String additionalMetadata,
             @Nullable org.springframework.core.io.Resource body) {
-        int size = 0;
+        byte[] content = new byte[0];
         if (body != null) {
-            try {
-                size = (int) body.contentLength();
-            } catch (Exception ignored) {
-                // size remains 0
+            try (java.io.InputStream in = body.getInputStream()) {
+                content = in.readAllBytes();
+            } catch (java.io.IOException e) {
+                throw new org.openapitools.persistence.InvalidInputException(
+                        "failed to read uploaded file: " + e.getMessage());
             }
         }
+        int size = petStore.savePetPhoto(petId, content, "application/octet-stream", additionalMetadata);
         String msg = buildUploadMessage(petId, additionalMetadata, size);
         ModelApiResponse response = new ModelApiResponse()
                 .code(200)
-                .type("unknown")
+                .type("application/octet-stream")
                 .message(msg);
         return ResponseEntity.ok(response);
     }

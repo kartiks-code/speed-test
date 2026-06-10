@@ -115,6 +115,16 @@ public class PetStore {
         return jdbc.update(sql, args.toArray()) > 0;
     }
 
+    public int savePetPhoto(long petId, byte[] content, String contentType, String metadata) {
+        getPetById(petId); // throws NotFoundException if missing
+        byte[] data = content != null ? content : new byte[0];
+        jdbc.update(
+                "INSERT INTO pet_photo (id, pet_id, content_type, metadata, content)"
+                        + " VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo), ?, ?, ?, ?)",
+                petId, contentType, metadata, data);
+        return data.length;
+    }
+
     public Map<String, Integer> inventory() {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT status::text, COUNT(*) AS cnt FROM pet WHERE status IS NOT NULL GROUP BY status ORDER BY status");

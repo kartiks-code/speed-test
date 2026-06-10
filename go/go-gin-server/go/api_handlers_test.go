@@ -17,6 +17,7 @@ type fakeStore struct {
 	pets   map[int64]Pet
 	orders map[int64]Order
 	users  map[string]User
+	photos map[int64][][]byte
 }
 
 func newFakeStore() *fakeStore {
@@ -24,7 +25,13 @@ func newFakeStore() *fakeStore {
 		pets:   map[int64]Pet{},
 		orders: map[int64]Order{},
 		users:  map[string]User{},
+		photos: map[int64][][]byte{},
 	}
+}
+
+func (s *fakeStore) SavePetPhoto(ctx context.Context, petID int64, content []byte, contentType string, metadata string) error {
+	s.photos[petID] = append(s.photos[petID], content)
+	return nil
 }
 
 func (s *fakeStore) Close() error { return nil }
