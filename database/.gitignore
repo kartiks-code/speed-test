@@ -1,0 +1,16 @@
+# Environment variables (keep .env.example checked in)
+.env
+.env.local
+
+# Local Postgres / Docker volume data
+data/
+pgdata/
+
+# Logs
+*.log
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store

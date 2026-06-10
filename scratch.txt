@@ -1,0 +1,46 @@
+can you create the following in
+ @go/go-gin-server/ can you implement all 
+ the stubs created for doing the actual crud and other operations 
+as defined in @go/go-gin-server/api/openapi.yaml 
+
+can you create the following in
+ @java/helidon can you implement all 
+ the stubs created for doing the actual crud and other operations 
+as defined in @java/helidon/api/openapi.yaml 
+for persistence use the database outlined in the database folder 
+
+can you create the following in
+ @java/springboot can you implement all 
+ the stubs created for doing the actual crud and other operations 
+as defined in @java/springboot/api/openapi.yaml 
+for persistence use the database outlined in the database folder, use the java-springboot database 
+
+can you create the following in
+ @nodejs can you implement all 
+ the stubs created for doing the actual crud and other operations 
+as defined in @nodejs/api/openapi.yaml 
+for persistence use the database outlined in the database folder, use the "nodejs-express" database 
+if no primary keys are found for that db then create it 
+once done create or update AGENTS.md file and README file in the directory 
+
+can you create the following in
+ @python can you implement all 
+ the stubs created for doing the actual crud and other operations 
+as defined in @python/api/openapi.yaml 
+for persistence use the database outlined in the database folder, use the "python-fastapi" database 
+if no primary keys are found for that db then create it 
+once done create or update AGENTS.md file and README file in the directory 
+
+
+can you create the following in
+ @rust can you implement all 
+ the stubs created for doing the actual crud and other operations 
+as defined in @rust/api/openapi.yaml 
+for persistence use the database outlined in the database folder, use the "rust-server" database 
+if no primary keys are found for that db then create it 
+once done create or update AGENTS.md file and README file in the directory 
+
+
+
+
+
