@@ -723,7 +723,10 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
         info!("create_users_with_list_input({:?}) - X-Span-ID: {:?}", user, context.get().0.clone());
 
         let users = match user {
-            None | Some(&ref u) if u.is_empty() => return Ok(CreateUsersWithListInputResponse::UnexpectedError(
+            None => return Ok(CreateUsersWithListInputResponse::UnexpectedError(
+                models::Error { code: "400".to_string(), message: "No users provided".to_string() }
+            )),
+            Some(u) if u.is_empty() => return Ok(CreateUsersWithListInputResponse::UnexpectedError(
                 models::Error { code: "400".to_string(), message: "No users provided".to_string() }
             )),
             Some(u) => u,

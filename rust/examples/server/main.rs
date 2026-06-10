@@ -23,7 +23,7 @@ async fn main() {
         )
         .get_matches();
 
-    let addr = "127.0.0.1:8080";
+    let addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
 
-    server::create(addr, matches.contains_id("https")).await;
+    server::create(&addr, matches.contains_id("https")).await;
 }

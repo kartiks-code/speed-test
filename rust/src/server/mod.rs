@@ -456,6 +456,7 @@ where
                 let result = http_body_util::BodyExt::collect(body).await.map(|f| f.to_bytes().to_vec());
                 match result {
                      Ok(body) => {
+                                let mut unused_elements: Vec<String> = vec![];
                                 let param_pet: Option<models::Pet> = if !body.is_empty() {
                                     let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
                                     match serde_ignored::deserialize(deserializer, |path| {
@@ -830,6 +831,7 @@ where
                 let result = http_body_util::BodyExt::collect(body).await.map(|f| f.to_bytes().to_vec());
                 match result {
                      Ok(body) => {
+                                let mut unused_elements: Vec<String> = vec![];
                                 let param_pet: Option<models::Pet> = if !body.is_empty() {
                                     let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
                                     match serde_ignored::deserialize(deserializer, |path| {
@@ -1596,6 +1598,7 @@ where
                 let result = http_body_util::BodyExt::collect(body).await.map(|f| f.to_bytes().to_vec());
                 match result {
                      Ok(body) => {
+                                let mut unused_elements: Vec<String> = vec![];
                                 let param_order: Option<models::Order> = if !body.is_empty() {
                                     let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
                                     serde_ignored::deserialize(deserializer, |path| {
@@ -1883,6 +1886,7 @@ where
                 let result = http_body_util::BodyExt::collect(body).await.map(|f| f.to_bytes().to_vec());
                 match result {
                      Ok(body) => {
+                                let mut unused_elements: Vec<String> = vec![];
                                 let param_user: Option<models::User> = if !body.is_empty() {
                                     let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
                                     serde_ignored::deserialize(deserializer, |path| {
@@ -2158,9 +2162,8 @@ where
                                                     }
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
-                                                        HeaderValue::from_static("application/xml"));
-                                                    // XML Body
-                                                    let body = serde_xml_rs::to_string(&body).expect("impossible to fail to serialize");
+                                                        HeaderValue::from_static("application/json"));
+                                                    // String body returned directly
                                                     *response.body_mut() = body_from_string(body);
 
                                                 },
@@ -2474,6 +2477,7 @@ where
                 let result = http_body_util::BodyExt::collect(body).await.map(|f| f.to_bytes().to_vec());
                 match result {
                      Ok(body) => {
+                                let mut unused_elements: Vec<String> = vec![];
                                 let param_user: Option<models::User> = if !body.is_empty() {
                                     let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
                                     serde_ignored::deserialize(deserializer, |path| {

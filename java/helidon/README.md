@@ -1,52 +1,82 @@
-# Helidon Server with OpenAPI
+# Java Helidon — Petstore Server
 
-## Build and run
+OpenAPI-generated Petstore server built on **Helidon MP 4** (MicroProfile / JAX-RS + CDI) with PostgreSQL persistence via plain JDBC and a HikariCP connection pool.
 
-With JDK11+
+## Prerequisites
+
+- JDK 21+ (required by Helidon 4)
+- Maven 3.8+
+- Docker (with Compose v2) for the database
+
+## Database
+
+This server persists to the shared PostgreSQL instance in `../../database/` and uses the `java-helidon` database.
+
+```bash
+cd ../../database
+docker compose up -d
+./create-databases.sh          # creates java-helidon (idempotent)
+./apply-schemas.sh             # applies petstore + OAuth2 tables
+cd ../../java/helidon
+```
+
+### Connection configuration
+
+Defaults live in `src/main/resources/META-INF/microprofile-config.properties` and can be overridden by environment variables:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `POSTGRES_HOST` | `localhost` | |
+| `POSTGRES_PORT` | `5432` | the shared Compose stack uses `5434` |
+| `POSTGRES_USER` | `postgres` | shared stack default is `myuser` |
+| `POSTGRES_PASSWORD` | `mysecret` | shared stack default is `mypassword` |
+| `POSTGRES_DB` | `java-helidon` | |
+
+To run against the shared Compose stack, export the matching values from `database/.env`:
+
+```bash
+set -a && source ../../database/.env && set +a
+export POSTGRES_DB=java-helidon
+```
+
+## Build and Run
+
 ```bash
 mvn package
 java -jar target/petstore-helidon.jar
 ```
 
-## Exercise the application
+The server listens on `http://localhost:8080` and serves the API under `/api/v3`.
 
-```
-curl -X POST https://petstore31.swagger.io/api/v3
-curl -X DELETE https://petstore31.swagger.io/api/v3/{petId}
-curl -X GET https://petstore31.swagger.io/api/v3/findByStatus
-curl -X GET https://petstore31.swagger.io/api/v3/findByTags
-curl -X GET https://petstore31.swagger.io/api/v3/{petId}
-curl -X PUT https://petstore31.swagger.io/api/v3
-curl -X POST https://petstore31.swagger.io/api/v3/{petId}
-curl -X POST https://petstore31.swagger.io/api/v3/{petId}/uploadImage
-curl -X DELETE https://petstore31.swagger.io/api/v3/order/{orderId}
-curl -X GET https://petstore31.swagger.io/api/v3/inventory
-curl -X GET https://petstore31.swagger.io/api/v3/order/{orderId}
-curl -X POST https://petstore31.swagger.io/api/v3/order
-curl -X POST https://petstore31.swagger.io/api/v3
-curl -X POST https://petstore31.swagger.io/api/v3/createWithList
-curl -X DELETE https://petstore31.swagger.io/api/v3/{username}
-curl -X GET https://petstore31.swagger.io/api/v3/{username}
-curl -X GET https://petstore31.swagger.io/api/v3/login
-curl -X GET https://petstore31.swagger.io/api/v3/logout
-curl -X PUT https://petstore31.swagger.io/api/v3/{username}
+## Try It
 
+```bash
+# Add a pet
+curl -s -X POST http://localhost:8080/api/v3/pet \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Fido","photoUrls":["http://example.com/fido.jpg"],"status":"available"}'
+
+# Fetch it back
+curl -s http://localhost:8080/api/v3/pet/1
+
+# Inventory by status
+curl -s http://localhost:8080/api/v3/store/inventory
 ```
 
-## Try health and metrics
+Health and metrics are exposed by MicroProfile:
+
+```bash
+curl -s http://localhost:8080/health
+curl -s http://localhost:8080/metrics
+```
+
+## Project Layout
 
 ```
-curl -s -X GET https://petstore31.swagger.io/api/v3/health
-{"outcome":"UP",...
-. . .
-
-# Prometheus Format
-curl -s -X GET https://petstore31.swagger.io/api/v3/metrics
-# TYPE base:gc_g1_young_generation_count gauge
-. . .
-
-# JSON Format
-curl -H 'Accept: application/json' -X GET https://petstore31.swagger.io/api/v3/metrics
-{"base":...
-. . .
+src/main/java/org/openapitools/server/
+├── api/        # JAX-RS resources — *ServiceImpl classes hold the endpoint logic
+├── db/         # persistence layer (DataSourceProvider + *Repository) — edit here
+└── model/      # generated DTOs (Pet, Order, User, …)
 ```
+
+Endpoint logic lives in `api/*ServiceImpl.java`, which delegate all SQL to the repositories in `db/`. See `AGENTS.md` for implementation conventions.

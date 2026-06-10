@@ -118,7 +118,7 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 dotenvy = "0.15"
 
 [target.'cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))'.dev-dependencies]
-openssl = "0.10"
+openssl = { version = "0.10", features = ["vendored"] }
 tokio-openssl = "0.6"
 
 [[example]]

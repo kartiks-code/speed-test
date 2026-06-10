@@ -42,5 +42,5 @@ pub async fn create_pool() -> PgPool {
         .max_connections(10)
         .connect(&dsn)
         .await
-        .unwrap_or_else(|e| panic!("Failed to connect to PostgreSQL ({dsn}): {e}"))
+        .unwrap_or_else(|err| panic!("Failed to connect to PostgreSQL ({}): {}", dsn, err))
 }
