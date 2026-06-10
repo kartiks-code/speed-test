@@ -1,11 +1,12 @@
 {
-  "name":  "swagger-petstore-openapi-3-1",
+  "name": "swagger-petstore-openapi-3-1",
   "version": "1.0.12",
   "description": "This is a sample Pet Store Server based on the OpenAPI 3.1 specification.  You can find out more about Swagger at [https://swagger.io](https://swagger.io). In the third iteration of the pet store, we've switched to the design first approach! You can now help us improve the API whether it's by making changes to the definition itself or to the code. That way, with time, we can improve the API in general, and expose some of the new features in OAS3.  Some useful links: - [The Pet Store repository](https://github.com/swagger-api/swagger-petstore) - [The source API definition for the Pet Store](https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml)",
   "main": "index.js",
   "scripts": {
     "prestart": "npm install",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "mocha test/**/*.test.js"
   },
   "keywords": [
     "openapi-generator",
@@ -14,7 +15,6 @@
   "license": "Unlicense",
   "private": true,
   "dependencies": {
-    "pg": "^8.13.3",
     "body-parser": "^1.19.0",
     "camelcase": "^5.3.1",
     "cookie-parser": "^1.4.4",
@@ -24,6 +24,7 @@
     "js-yaml": "^3.3.0",
     "ono": "^5.0.1",
     "openapi-sampler": "^1.0.0-beta.15",
+    "pg": "^8.13.3",
     "swagger-ui-express": "^4.0.2",
     "winston": "^3.2.1"
   },
@@ -33,7 +34,8 @@
     "eslint": "^5.16.0",
     "eslint-config-airbnb-base": "^14.0.0",
     "eslint-plugin-import": "^2.17.2",
-    "mocha": "^7.1.1"
+    "mocha": "^7.1.1",
+    "sinon": "^22.0.0"
   },
   "eslintConfig": {
     "env": {

@@ -130,6 +130,10 @@ required-features = ["client"]
 name = "petstore-server-server"
 path = "examples/server/main.rs"
 required-features = ["server"]
+# Enable `cargo test` to compile this example with the test harness and run the
+# `#[cfg(test)]` unit tests living next to the hand-written server code
+# (examples/server/db.rs and server.rs). These tests are database-free.
+test = true
 
 [[bin]]
 name = "petstore-server"
