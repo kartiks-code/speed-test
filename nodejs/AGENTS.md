@@ -71,11 +71,32 @@ nodejs/
 - The `pg` node-postgres driver is used directly (no ORM). SQL mirrors the Helidon sibling server in `../java/helidon/`.
 - `photo_urls` and `tags` are stored as JSON columns. `category` on `pet` is also a JSON string. Enums (`pet_status`, `order_status`) are cast explicitly in SQL.
 - `pet.id` and `order.id` are generated server-side from a monotonic counter seeded at startup if absent in the request.
-- `uploadFile` and `logoutUser` require no DB interaction.
+- `uploadFile` persists the raw request body (parsed via the `application/octet-stream` body parser) to the `pet_photo` table through `petRepository.addPhoto`; `logoutUser` requires no DB interaction.
+
+## Mutation Testing
+
+[Stryker](https://stryker-mutator.io) is configured in `stryker.config.json`.
+It mutates the hand-written `db/` (repositories) and `services/` code, running
+the full Mocha test suite against each mutant. The tests mock `pg.Pool`, so no
+live database is needed.
+
+```bash
+npm install                   # installs @stryker-mutator/core + mocha-runner
+npm run mutate                # runs stryker; writes reports/ to reports/mutation/
+
+# Alias without the npm script:
+npx stryker run
+```
+
+Stryker produces an HTML report at `reports/mutation/mutation.html`.
+A surviving mutant means no test distinguished the mutated code from the
+original — either tighten an assertion or confirm the mutation is equivalent.
 
 ## Common Commands
 
 ```bash
 npm install                   # install dependencies including pg
 npm start                     # start server on port 8080
+npm test                      # run Mocha test suite
+npm run mutate                # run Stryker mutation analysis
 ```

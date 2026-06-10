@@ -1,2 +1,6 @@
 target
 Cargo.lock
+
+# Mutation testing (cargo-mutants)
+mutants.out/
+mutants.out.old/

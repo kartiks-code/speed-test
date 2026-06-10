@@ -1,0 +1,15 @@
+{
+  "$schema": "https://stryker-mutator.io/schemas/stryker-core.json",
+  "testRunner": "mocha",
+  "mocha": {
+    "spec": "test/**/*.test.js"
+  },
+  "mutate": [
+    "db/**/*.js",
+    "services/**/*.js",
+    "!db/pool.js"
+  ],
+  "reporters": ["clear-text", "html"],
+  "coverageAnalysis": "perTest",
+  "timeoutMS": 10000
+}

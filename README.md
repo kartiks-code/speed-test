@@ -88,6 +88,20 @@ All servers implement the same 19 Petstore operations and share these persistenc
 - `pet.status` / `order.status` are PostgreSQL enum types (`pet_status`, `order_status`).
 - Server-assigned IDs use `MAX(id) + 1` when omitted; writes upsert with `INSERT … ON CONFLICT`.
 - Tables `pet`, `"order"`, and `"user"` are used (the latter two are quoted reserved words).
-- `uploadFile` does not persist binary data; `logoutUser` is a no-op.
+- `uploadFile` persists the uploaded image bytes to the `pet_photo` table (`BYTEA` content) keyed by `pet_id`; `logoutUser` is a no-op.
 
 See each project's `AGENTS.md` for language-specific details.
+
+## Mutation Testing
+
+All projects have a mutation testing tool configured against the DB-free unit
+tests. No database is required.
+
+| Project | Tool | Command |
+|---|---|---|
+| Java Spring Boot | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| Java Helidon | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| Node.js | [Stryker](https://stryker-mutator.io) | `npm run mutate` |
+| Python | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
+| Go | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
+| Rust | [cargo-mutants](https://mutants.rs) | `cargo mutants` |

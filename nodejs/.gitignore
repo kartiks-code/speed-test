@@ -24,6 +24,10 @@ uploaded_files/*
 coverage/
 .nyc_output/
 
+# Mutation testing (Stryker)
+reports/
+.stryker-tmp/
+
 # Build output
 dist/
 build/

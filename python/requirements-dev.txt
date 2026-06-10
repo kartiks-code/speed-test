@@ -1,0 +1,8 @@
+# Development-only dependencies (tests + mutation testing).
+# Install with:  pip install -r requirements.txt -r requirements-dev.txt
+pytest>=8.0
+
+# Mutation testing. Pinned to the 2.x line: its in-place mutation model honors
+# PYTHONPATH=src, which suits this project's src/ layout and nested
+# `petstore.petstore.impl` package. Run with: PYTHONPATH=src mutmut run
+mutmut>=2.4,<3

@@ -1,0 +1,9 @@
+# gremlins configuration (https://gremlins.dev)
+# Install: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
+# Run:     gremlins unleash ./go/...
+#
+# Only the hand-written petstore package (./go/) is mutated.
+# The test suite is DB-free (mock store), so tests run fast per mutant.
+threshold:
+  mutation: 0     # report all; increase (0–100) to gate CI on a minimum score
+  coverage: 0     # minimum coverage required before mutation starts

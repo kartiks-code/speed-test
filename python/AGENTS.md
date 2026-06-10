@@ -78,6 +78,27 @@ PYTHONPATH=src pytest tests
 
 Browse the interactive API docs at `http://localhost:8080/docs` after starting.
 
+## Mutation Testing
+
+[mutmut](https://mutmut.readthedocs.io) (2.x) mutates the hand-written
+implementation in `src/petstore/petstore/impl/` and reruns the pytest suite
+against each mutant. Configuration lives in the `[mutmut]` section of
+`setup.cfg`. The unit tests use an in-memory fake database (`tests/conftest.py`),
+so no PostgreSQL is needed.
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+PYTHONPATH=src mutmut run        # mutate impl/, rerun pytest per mutant
+mutmut results                   # list surviving mutants
+mutmut show <id>                 # inspect a specific surviving mutant
+mutmut html                      # write an HTML report to html/
+```
+
+`PYTHONPATH=src` is required so the spawned pytest runner can import the
+`petstore` package from the `src/` layout. A surviving mutant means no test
+distinguishes the mutated code from the original — either kill it with a
+sharper assertion or confirm it is equivalent.
+
 ## Implementation Pattern
 
 The generated routers in `apis/` dispatch to subclasses of `BasePetApi`, `BaseStoreApi`, and `BaseUserApi`. The `pkgutil` loader in each router file auto-discovers all modules under `petstore.petstore.impl` and registers any subclass. To add a new implementation or replace the existing one, create a class that inherits from the appropriate base class in that package.

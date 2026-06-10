@@ -65,7 +65,7 @@ go/go-gin-server/
 - Enum columns (`pet.status` = `pet_status`, `order.status` = `order_status`) are cast with `NULLIF($n, '')::pet_status` on write and selected as `status::text` on read.
 - IDs are generated server-side with `COALESCE(MAX(id), 0) + 1` when omitted; writes use `INSERT … ON CONFLICT … DO UPDATE` upserts.
 - `CreateUsers` runs inside a transaction. Tables used: `pet`, `"order"`, `"user"` (quoted because they are reserved words).
-- `uploadFile` verifies the pet exists but does not persist binary data; `logoutUser` is a stateless no-op.
+- `uploadFile` verifies the pet exists, then persists the raw request body via `Store.SavePetPhoto` into the `pet_photo` table; the response reports the stored byte count. `logoutUser` is a stateless no-op.
 
 ## Verification
 
@@ -91,3 +91,22 @@ curl -s -X POST http://localhost:8080/api/v3/pet \
   -d '{"name":"Fido","photoUrls":["http://example.com/fido.jpg"],"status":"available"}'
 curl -s http://localhost:8080/api/v3/store/inventory
 ```
+
+## Mutation Testing
+
+[gremlins](https://gremlins.dev) is configured in `.gremlins.yaml`.
+It mutates the hand-written `petstore` package (`./go/`) and reruns `go test`
+against each mutant. The DB-free unit tests (mock `Store` interface) run fast
+enough for per-mutant reruns without a live database.
+
+```bash
+# Install (one time):
+go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
+
+# Run from the project directory (go/go-gin-server/):
+gremlins unleash ./go/...
+```
+
+gremlins prints a mutation score and lists surviving mutants per file. A
+surviving mutant means no test distinguished the mutated code from the original —
+either add a sharper assertion or confirm the mutation is equivalent.

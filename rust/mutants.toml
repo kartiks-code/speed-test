@@ -1,0 +1,12 @@
+# cargo-mutants configuration.
+# Install: cargo install cargo-mutants
+# Run:     cargo mutants
+#
+# Only the hand-written server implementation is mutated.
+# Generated source under src/ (models, HTTP router, API traits) is excluded
+# so the mutation run stays fast and actionable.
+
+exclude_globs = [
+    "src/**",
+    "bin/**",
+]

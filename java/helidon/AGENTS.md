@@ -50,13 +50,32 @@ src/main/java/org/openapitools/server/
 - `category`, `photo_urls`, and `tags` are JSON columns written with Jackson `ObjectMapper` and `cast(? as json)`. `category` is stored as a JSON string.
 - Enum columns (`pet.status` = `pet_status`, `order.status` = `order_status`) are written with `cast(? as pet_status)` and read as `status::text`, then mapped via the model enum `fromValue`.
 - IDs default to an `AtomicLong` counter (seeded at startup) when omitted by the request.
-- `uploadFile` returns a mock `ModelApiResponse` and does not persist binary data; `logoutUser` is a no-op.
+- `uploadFile` reads the uploaded `File` body into a `byte[]` and persists it via `PetRepository.savePhoto` into the `pet_photo` table; the returned `ModelApiResponse` reports the stored byte count. `logoutUser` is a no-op.
 - Tables used: `pet`, `"order"`, `"user"` (quoted reserved words).
 
 ## Generated vs. Hand-Written
 
 - `model/` and the generator scaffolding are generated artifacts — avoid hand edits; they may be overwritten on regeneration.
 - `api/*ServiceImpl.java` and everything under `db/` are the hand-written implementation. Preserve them if the project is regenerated.
+
+## Mutation Testing
+
+[PIT](https://pitest.org) (pitest-maven 1.25.4) is configured in `pom.xml`.
+It targets the hand-written `*ServiceImpl` and `db.*` classes.
+Generated model/interface/scaffolding code is excluded. The unit tests use
+plain Mockito (no CDI container), so PIT instruments them without issues.
+
+```bash
+# Run mutation analysis (produces target/pit-reports/index.html):
+mvn test-compile org.pitest:pitest-maven:mutationCoverage
+
+# Incremental re-run — only re-tests classes changed since the last run:
+mvn test-compile org.pitest:pitest-maven:mutationCoverage -DwithHistory
+```
+
+A surviving mutant means no test distinguishes the mutated bytecode from the
+original. Fix survivors by adding a sharper assertion or confirm they are
+equivalent mutations.
 
 ## Verification
 

@@ -35,9 +35,24 @@ Always run commands from the project's own directory. The database must be up fi
 | `go/go-gin-server` | `go build ./...` | `go test ./...` | `go run main.go` |
 | `java/springboot` | `mvn package` | `mvn test` | `mvn spring-boot:run` |
 | `java/helidon` | `mvn package` | `mvn test` | `java -jar target/petstore-helidon.jar` |
-| `nodejs` | `npm install` | *(no test script wired; `mocha`/`chai` are dev deps)* | `npm start` |
+| `nodejs` | `npm install` | `npm test` | `npm start` |
 | `python` | `pip install -r requirements.txt` | `PYTHONPATH=src pytest tests` | `PYTHONPATH=src uvicorn petstore.main:app --port 8080` |
 | `rust` | `cargo build` | `cargo test` | `cargo run --example petstore-server-server` |
+
+## Mutation Testing
+
+Every project (except Rust which has limited test coverage) has a mutation testing tool configured. All mutation tools use the same DB-free unit tests, so no PostgreSQL is required.
+
+| Project | Tool | Command |
+|---|---|---|
+| `java/springboot` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| `java/helidon` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| `nodejs` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (after `npm install`) |
+| `python` | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
+| `go/go-gin-server` | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
+| `rust` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
+
+Each project's `AGENTS.md` has the install step and a description of what is mutated vs. excluded.
 
 ### Notes for cross-project tasks (e.g. "build test cases for all projects")
 

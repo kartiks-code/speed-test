@@ -64,9 +64,32 @@ The server starts on `http://127.0.0.1:8080`. All routes are under `/api/v3`.
 - **Timestamps**: `order.ship_date` is a `TIMESTAMP` (no timezone) column. Converted to/from `chrono::NaiveDateTime` (UTC assumed both directions).
 - **ID generation**: When a request omits an id, the server uses `COALESCE(MAX(id), 0) + 1` from the relevant table.
 - **Upserts**: `add_pet`, `place_order`, `create_user`, `create_users_with_list_input` use `INSERT … ON CONFLICT … DO UPDATE`.
-- **upload_file**: Verifies the pet exists; does not persist binary data. Returns a mock `ApiResponse`.
+- **upload_file**: Verifies the pet exists, then persists the request body (`ByteArray`) into the `pet_photo` table via `sqlx`; the returned `ApiResponse` reports the stored byte count.
 - **logout_user**: Stateless no-op; always returns success.
 - **Tables used**: `pet`, `"order"`, `"user"`. Standalone `category` and `tag` tables from the schema are not queried.
+
+## Mutation Testing
+
+[cargo-mutants](https://mutants.rs) is configured in `mutants.toml`.
+Generated code under `src/` and `bin/` is excluded; only the hand-written
+implementation (`examples/server/server.rs`, `db.rs`) is mutated.
+The `#[cfg(test)]` unit tests in those files run without a live database.
+
+```bash
+# Install (one time):
+cargo install cargo-mutants
+
+# Run from rust/ (produces mutants.out/ with per-mutant results):
+cargo mutants
+
+# Faster: limit to the hand-written example and run 4 jobs in parallel:
+cargo mutants --jobs 4 --file examples/server/server.rs --file examples/server/db.rs
+```
+
+`cargo mutants` compiles and tests each mutant in a temporary workspace copy.
+Surviving mutants are listed in `mutants.out/missed.txt`. A survivor means no
+test caught the change — either add a targeted unit test or confirm it is
+equivalent.
 
 ## Verification
 

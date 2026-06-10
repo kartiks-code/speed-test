@@ -28,6 +28,40 @@
                 <configuration>
                 </configuration>
             </plugin>
+            <!--
+                Mutation testing with PIT.
+                Run with:  mvn test-compile org.pitest:pitest-maven:mutationCoverage
+                or add -DwithHistory for incremental runs.
+                Only the hand-written persistence and controller classes are targeted;
+                generated model/config/interface code is excluded.
+            -->
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>1.25.4</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>1.2.3</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetClasses>
+                        <param>org.openapitools.api.*ApiController</param>
+                        <param>org.openapitools.api.ApiExceptionHandler</param>
+                        <param>org.openapitools.persistence.*</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>org.openapitools.*</param>
+                    </targetTests>
+                    <outputFormats>
+                        <outputFormat>HTML</outputFormat>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
+                    <failWhenNoMutations>false</failWhenNoMutations>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
     <dependencies>
