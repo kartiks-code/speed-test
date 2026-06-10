@@ -78,8 +78,8 @@ All implementations must behave identically. When changing or testing any server
 - `category`, `photo_urls`, `tags` are JSON columns; `category` is stored as a JSON string.
 - `pet.status` (`pet_status`) and `order.status` (`order_status`) are PostgreSQL enum types; cast on write, read as `::text`.
 - Server-assigned IDs use `MAX(id) + 1` when the request omits one; writes upsert via `INSERT … ON CONFLICT`.
-- Tables used: `pet`, `"order"`, `"user"` (the last two quoted because they are reserved words).
-- `uploadFile` verifies the pet exists but does not store binary data; `logoutUser` is a stateless no-op.
+- Tables used: `pet`, `"order"`, `"user"` (the last two quoted because they are reserved words), and `pet_photo` (binary image storage).
+- `uploadFile` verifies the pet exists, then persists the raw request body to the `pet_photo` table (`content` is a `BYTEA` column) keyed by `pet_id`; the response message reports the number of bytes stored. `logoutUser` is a stateless no-op.
 
 ## Conventions for Agents
 

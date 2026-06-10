@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -114,12 +113,14 @@ class PetServiceImplTest {
     }
 
     @Test
-    void uploadFileReturnsMockResponseWithoutTouchingRepository() {
+    void uploadFilePersistsPhotoAndReportsByteCount() {
+        when(repo.savePhoto(1L, new byte[0], "application/octet-stream", "meta-data")).thenReturn(0);
+
         ModelApiResponse response = service.uploadFile(1L, "meta-data", null);
 
         assertEquals(200, response.getCode());
-        assertEquals("ok", response.getType());
-        assertEquals("additionalMetadata: meta-data", response.getMessage());
-        verifyNoInteractions(repo);
+        assertEquals("application/octet-stream", response.getType());
+        assertEquals("petId: 1, bytes: 0, additionalMetadata: meta-data", response.getMessage());
+        verify(repo).savePhoto(1L, new byte[0], "application/octet-stream", "meta-data");
     }
 }

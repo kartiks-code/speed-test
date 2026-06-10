@@ -88,10 +88,22 @@ public class PetServiceImpl implements PetService {
     public ModelApiResponse uploadFile(@PathParam("petId") Long petId,
                                        @QueryParam("additionalMetadata") String additionalMetadata,
                                        @Valid File body) {
+        byte[] content = new byte[0];
+        if (body != null) {
+            try {
+                content = java.nio.file.Files.readAllBytes(body.toPath());
+            } catch (java.io.IOException e) {
+                throw new jakarta.ws.rs.WebApplicationException(
+                    "Failed to read uploaded file: " + e.getMessage(),
+                    jakarta.ws.rs.core.Response.Status.BAD_REQUEST);
+            }
+        }
+        int size = repo.savePhoto(petId, content, "application/octet-stream", additionalMetadata);
         ModelApiResponse response = new ModelApiResponse();
         response.setCode(200);
-        response.setType("ok");
-        response.setMessage("additionalMetadata: " + additionalMetadata);
+        response.setType("application/octet-stream");
+        response.setMessage("petId: " + petId + ", bytes: " + size
+            + (additionalMetadata != null ? ", additionalMetadata: " + additionalMetadata : ""));
         return response;
     }
 }

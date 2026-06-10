@@ -201,6 +201,36 @@ public class PetRepository {
         }
     }
 
+    public int savePhoto(long petId, byte[] content, String contentType, String metadata) {
+        byte[] data = content != null ? content : new byte[0];
+        try (Connection conn = dsProvider.get().getConnection()) {
+            try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM pet WHERE \"id\" = ?")) {
+                ps.setLong(1, petId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new WebApplicationException("Pet not found", Response.Status.NOT_FOUND);
+                    }
+                }
+            }
+            String sql =
+                "INSERT INTO pet_photo (\"id\", pet_id, content_type, metadata, content) " +
+                "VALUES ((SELECT COALESCE(MAX(\"id\"), 0) + 1 FROM pet_photo), ?, ?, ?, ?)";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setLong(1, petId);
+                ps.setString(2, contentType);
+                ps.setString(3, metadata);
+                ps.setBytes(4, data);
+                ps.executeUpdate();
+            }
+            return data.length;
+        } catch (WebApplicationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new WebApplicationException("Failed to save pet photo: " + e.getMessage(),
+                Response.Status.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public Map<String, Integer> getInventory() {
         try (Connection conn = dsProvider.get().getConnection()) {
             String sql = "SELECT status::text, cast(COUNT(*) as int) FROM pet GROUP BY status";

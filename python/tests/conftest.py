@@ -45,6 +45,7 @@ class FakeDB:
         self.pets: dict[int, dict] = {}
         self.orders: dict[int, dict] = {}
         self.users: dict[str, dict] = {}
+        self.pet_photos: list[dict] = []
 
     # --- seeding helpers used by tests ---------------------------------
     def add_pet(
@@ -236,6 +237,16 @@ class FakeConnection:
 
     async def execute(self, query: str, *args) -> str:
         q = _norm(query)
+        if q.startswith("INSERT INTO pet_photo"):
+            pet_id, content_type, metadata, content = args
+            self.db.pet_photos.append({
+                "id": len(self.db.pet_photos) + 1,
+                "pet_id": pet_id,
+                "content_type": content_type,
+                "metadata": metadata,
+                "content": content,
+            })
+            return "INSERT 0 1"
         if q.startswith("UPDATE pet SET name = $2, status = $3::pet_status"):
             pet_id, name, status = args
             row = self.db.pets.get(pet_id)

@@ -154,13 +154,31 @@ describe('PetService', () => {
   });
 
   describe('uploadFile', () => {
-    it('returns a synthetic success payload without touching the DB', async () => {
-      const res = await PetService.uploadFile({ petId: 3, additionalMetadata: 'meta' });
+    it('persists the uploaded bytes and reports the byte count', async () => {
+      const content = Buffer.from('image-bytes');
+      const addPhoto = sinon.stub(petRepo, 'addPhoto').resolves(content.length);
+
+      const res = await PetService.uploadFile({ petId: 3, additionalMetadata: 'meta', body: content });
 
       expect(res.code).to.equal(200);
       expect(res.payload.code).to.equal(200);
       expect(res.payload.message).to.contain('pet 3');
+      expect(res.payload.message).to.contain(`${content.length} bytes`);
       expect(res.payload.message).to.contain('meta');
+      expect(addPhoto.calledOnceWith(3, content, 'application/octet-stream', 'meta')).to.equal(true);
+    });
+
+    it('maps a repository error with .status to rejectResponse', async () => {
+      const err = new Error('Pet not found');
+      err.status = 404;
+      sinon.stub(petRepo, 'addPhoto').rejects(err);
+
+      const rejection = await PetService.uploadFile({ petId: 9, body: Buffer.alloc(0) }).then(
+        () => { throw new Error('expected rejection'); },
+        (e) => e,
+      );
+
+      expect(rejection).to.deep.equal({ error: 'Pet not found', code: 404 });
     });
   });
 });

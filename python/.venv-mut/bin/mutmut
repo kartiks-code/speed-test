@@ -1,0 +1,6 @@
+#!/home/kartik/git/speed-test/python/.venv-mut/bin/python3
+import sys
+from mutmut.__main__ import climain
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(climain())

@@ -259,10 +259,17 @@ def test_upload_file_success(client: TestClient, db):
     assert body["code"] == 200
     assert "File uploaded for pet 30" in body["message"]
     assert "vacation" in body["message"]
+    # the binary content is persisted in the pet_photo table
+    assert len(db.pet_photos) == 1
+    photo = db.pet_photos[0]
+    assert photo["pet_id"] == 30
+    assert photo["metadata"] == "vacation"
+    assert photo["content"] == b"/path/to/file.jpg"
 
 
-def test_upload_file_pet_not_found_is_404(client: TestClient):
+def test_upload_file_pet_not_found_is_404(client: TestClient, db):
     resp = client.post("/pet/999/uploadImage", headers=AUTH,
                        json="/path/to/file.jpg")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Pet not found"
+    assert db.pet_photos == []

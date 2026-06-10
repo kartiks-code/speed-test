@@ -514,7 +514,7 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
     {
         info!("upload_file({}, {:?}, {:?}) - X-Span-ID: {:?}", pet_id, additional_metadata, body, context.get().0.clone());
 
-        // Verify the pet exists; no file persistence (mirrors sibling behaviour).
+        // Verify the pet exists before persisting the uploaded image.
         let exists: bool = sqlx::query_scalar(r#"SELECT EXISTS(SELECT 1 FROM pet WHERE id = $1)"#)
             .bind(pet_id)
             .fetch_one(&self.pool)
@@ -528,10 +528,30 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
             }));
         }
 
+        let content: Vec<u8> = body.map(|b| b.0).unwrap_or_default();
+        let size = content.len();
+
+        sqlx::query(
+            r#"INSERT INTO pet_photo (id, pet_id, content_type, metadata, content)
+               VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo), $1, $2, $3, $4)"#,
+        )
+        .bind(pet_id)
+        .bind("application/octet-stream")
+        .bind(additional_metadata.as_deref())
+        .bind(&content)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| ApiError(format!("DB error saving photo: {e}")))?;
+
+        let message = match &additional_metadata {
+            Some(meta) => format!("File uploaded for pet {pet_id}, {size} bytes ({meta})"),
+            None => format!("File uploaded for pet {pet_id}, {size} bytes"),
+        };
+
         Ok(UploadFileResponse::SuccessfulOperation(models::ApiResponse {
             code: Some(200),
-            r#type: Some("ok".to_string()),
-            message: additional_metadata,
+            r#type: Some("application/octet-stream".to_string()),
+            message: Some(message),
         }))
     }
 
