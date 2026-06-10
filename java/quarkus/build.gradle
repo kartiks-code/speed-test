@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'io.quarkus' version "${quarkusPlatformVersion}"
+    id 'info.solidsoft.pitest' version '1.19.0'
+}
+
+repositories {
+    mavenCentral()
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+        // version constraints handled via BOM
+    }
+}
+
+dependencies {
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    testImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+
+    implementation 'io.quarkus:quarkus-resteasy-reactive'
+    implementation 'io.quarkus:quarkus-resteasy-reactive-jackson'
+    implementation 'io.quarkus:quarkus-hibernate-validator'
+    implementation 'io.quarkus:quarkus-jdbc-postgresql'
+    implementation 'io.quarkus:quarkus-agroal'
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+test {
+    useJUnitPlatform()
+    systemProperty 'java.util.logging.manager', 'org.jboss.logmanager.LogManager'
+}
+
+pitest {
+    pitestVersion = '1.17.4'
+    junit5PluginVersion = '1.2.3'
+    targetClasses = ['org.openapitools.server.api.*Impl', 'org.openapitools.server.db.*']
+    targetTests = ['org.openapitools.server.*']
+    outputFormats = ['HTML']
+    timestampedReports = false
+    failWhenNoMutations = false
+}

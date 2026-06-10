@@ -40,6 +40,11 @@ DATABASES=(
   "nodejs-express"
   "rust-server"
   "python-fastapi"
+  "csharp-aspnetcore"
+  "php-laravel"
+  "ruby-rails"
+  "kotlin-ktor"
+  "elixir-phoenix"
 )
 
 echo "Connecting to PostgreSQL at ${PGHOST}:${PGPORT} as '${PGUSER}'"

@@ -15,6 +15,11 @@ DATABASES=(
   nodejs-express
   rust-server
   python-fastapi
+  csharp-aspnetcore
+  php-laravel
+  ruby-rails
+  kotlin-ktor
+  elixir-phoenix
 )
 
 for db in "${DATABASES[@]}"; do

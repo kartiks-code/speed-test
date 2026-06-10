@@ -31,6 +31,11 @@ Keep the database list in sync across scripts and docs:
 - `nodejs-express`
 - `rust-server`
 - `python-fastapi`
+- `csharp-aspnetcore`
+- `php-laravel`
+- `ruby-rails`
+- `kotlin-ktor`
+- `elixir-phoenix`
 
 The same list appears in `create-databases.sh`, `apply-schemas.sh`, and `DEVELOPER.md`.
 

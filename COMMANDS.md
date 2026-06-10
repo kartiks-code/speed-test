@@ -105,3 +105,60 @@ openapi-generator-cli generate \
   -o python \
   --additional-properties=packageName=petstore,projectName=petstore-server,packageVersion=1.0.0,fastapiImplementationPackage=petstore.impl
 ```
+
+---
+
+## 9. C# — ASP.NET Core
+
+```bash
+openapi-generator-cli generate \
+  -g aspnetcore \
+  -i spec/petstore-31.yaml \
+  -o csharp/aspnetcore \
+  --additional-properties=aspnetCoreVersion=8.0,packageName=Petstore,packageVersion=1.0.0,hideGenerationTimestamp=true
+```
+
+---
+
+## 10. PHP — Laravel
+
+```bash
+openapi-generator-cli generate \
+  -g php-laravel \
+  -i spec/petstore-31.yaml \
+  -o php/laravel \
+  --additional-properties=packageName=petstore,hideGenerationTimestamp=true
+```
+
+---
+
+## 11. Ruby — Rails
+
+```bash
+openapi-generator-cli generate \
+  -g ruby-on-rails \
+  -i spec/petstore-31.yaml \
+  -o ruby/rails \
+  --additional-properties=gemName=petstore,gemVersion=1.0.0,hideGenerationTimestamp=true
+```
+
+---
+
+## 12. Kotlin — Ktor
+
+```bash
+openapi-generator-cli generate \
+  -g kotlin-server \
+  -i spec/petstore-31.yaml \
+  -o kotlin/ktor \
+  --additional-properties=library=ktor,groupId=com.example,artifactId=petstore-ktor,artifactVersion=1.0.0,packageName=com.example.petstore,hideGenerationTimestamp=true
+```
+
+---
+
+## 13. Elixir — Phoenix
+
+Elixir/Phoenix has no OpenAPI Generator server target. The `elixir/phoenix/` project
+is hand-written using `mix phx.new --no-ecto --no-html` and **Postgrex** for raw SQL
+persistence. See `elixir/phoenix/AGENTS.md` for setup and conventions.
+

@@ -80,6 +80,11 @@ This creates one database for each generated server:
 | `nodejs-express` | Node.js — Express |
 | `rust-server` | Rust |
 | `python-fastapi` | Python — FastAPI |
+| `csharp-aspnetcore` | C# — ASP.NET Core |
+| `php-laravel` | PHP — Laravel |
+| `ruby-rails` | Ruby — Rails |
+| `kotlin-ktor` | Kotlin — Ktor |
+| `elixir-phoenix` | Elixir — Phoenix |
 
 The script is idempotent — re-running it skips databases that already exist.
 
@@ -107,6 +112,11 @@ DATABASES=(
   nodejs-express
   rust-server
   python-fastapi
+  csharp-aspnetcore
+  php-laravel
+  ruby-rails
+  kotlin-ktor
+  elixir-phoenix
 )
 
 for db in "${DATABASES[@]}"; do
@@ -158,7 +168,7 @@ docker compose ps               # wait until healthy
 ./create-databases.sh
 
 set -a && source .env && set +a
-for db in go-gin-server java-springboot java-helidon java-quarkus nodejs-express rust-server python-fastapi; do
+for db in go-gin-server java-springboot java-helidon java-quarkus nodejs-express rust-server python-fastapi csharp-aspnetcore php-laravel ruby-rails kotlin-ktor elixir-phoenix; do
   psql -h localhost -p "${POSTGRES_PORT:-5432}" -U "$POSTGRES_USER" -d "$db" \
     -f postgresql_schema.sql -f postgresql_schema_oauth2.sql
 done

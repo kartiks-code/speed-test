@@ -12,9 +12,15 @@ This repository implements the **same OpenAPI Petstore API in multiple languages
 | `go/go-gin-server/` | Go + Gin server | `go/go-gin-server/AGENTS.md` |
 | `java/springboot/` | Java 17 + Spring Boot 3.3 server | `java/springboot/AGENTS.md` |
 | `java/helidon/` | Java 21 + Helidon MP 4 server | `java/helidon/AGENTS.md` |
+| `java/quarkus/` | Java 21 + Quarkus server | `java/quarkus/AGENTS.md` |
 | `nodejs/` | Node.js + Express server | `nodejs/AGENTS.md` |
 | `python/` | Python + FastAPI server | `python/AGENTS.md` |
 | `rust/` | Rust + hyper server | `rust/AGENTS.md` |
+| `csharp/aspnetcore/` | C# + ASP.NET Core 8 server | `csharp/aspnetcore/AGENTS.md` |
+| `php/laravel/` | PHP + Laravel server | `php/laravel/AGENTS.md` |
+| `ruby/rails/` | Ruby + Rails server | `ruby/rails/AGENTS.md` |
+| `kotlin/ktor/` | Kotlin + Ktor server | `kotlin/ktor/AGENTS.md` |
+| `elixir/phoenix/` | Elixir + Phoenix server (hand-written) | `elixir/phoenix/AGENTS.md` |
 | `performance-tests/` | Placeholder for cross-implementation benchmarks | — |
 
 ## The Core Workflow
@@ -35,9 +41,15 @@ Always run commands from the project's own directory. The database must be up fi
 | `go/go-gin-server` | `go build ./...` | `go test ./...` | `go run main.go` |
 | `java/springboot` | `mvn package` | `mvn test` | `mvn spring-boot:run` |
 | `java/helidon` | `mvn package` | `mvn test` | `java -jar target/petstore-helidon.jar` |
+| `java/quarkus` | `mvn package` | `mvn test` | `mvn quarkus:dev` |
 | `nodejs` | `npm install` | `npm test` | `npm start` |
 | `python` | `pip install -r requirements.txt` | `PYTHONPATH=src pytest tests` | `PYTHONPATH=src uvicorn petstore.main:app --port 8080` |
 | `rust` | `cargo build` | `cargo test` | `cargo run --example petstore-server-server` |
+| `csharp/aspnetcore` | `dotnet build` | `dotnet test` | `dotnet run --project src/Petstore` |
+| `php/laravel` | `composer install` | `php artisan test` | `php artisan serve --port=8080` |
+| `ruby/rails` | `bundle install` | `bundle exec rspec` | `bundle exec rails server -p 8080` |
+| `kotlin/ktor` | `./gradlew build` | `./gradlew test` | `./gradlew run` |
+| `elixir/phoenix` | `mix deps.get && mix compile` | `mix test` | `mix phx.server` |
 
 ## Mutation Testing
 
@@ -47,10 +59,16 @@ Every project (except Rust which has limited test coverage) has a mutation testi
 |---|---|---|
 | `java/springboot` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
 | `java/helidon` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| `java/quarkus` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
 | `nodejs` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (after `npm install`) |
 | `python` | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
 | `go/go-gin-server` | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
 | `rust` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
+| `csharp/aspnetcore` | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet stryker` |
+| `php/laravel` | [Infection](https://infection.github.io) | `./vendor/bin/infection` |
+| `ruby/rails` | [mutant](https://github.com/mbj/mutant) | `bundle exec mutant run` |
+| `kotlin/ktor` | [PIT](https://pitest.org) | `./gradlew pitest` |
+| `elixir/phoenix` | [muzak](https://github.com/devonestes/muzak) | `mix muzak` (best-effort; see AGENTS.md) |
 
 Each project's `AGENTS.md` has the install step and a description of what is mutated vs. excluded.
 
@@ -79,9 +97,15 @@ Defaults (from `database/.env`): host `localhost`, port `5434`, user `myuser`, p
 | Go | `go-gin-server` |
 | Spring Boot | `java-springboot` |
 | Helidon | `java-helidon` |
+| Quarkus | `java-quarkus` |
 | Node.js | `nodejs-express` |
 | Python | `python-fastapi` |
 | Rust | `rust-server` |
+| C# ASP.NET Core | `csharp-aspnetcore` |
+| PHP Laravel | `php-laravel` |
+| Ruby Rails | `ruby-rails` |
+| Kotlin Ktor | `kotlin-ktor` |
+| Elixir Phoenix | `elixir-phoenix` |
 
 > Connection **defaults differ per project**: Node.js, Python, Spring Boot, and Rust default to the shared `5434` / `myuser` / `mypassword`. Go and Helidon default to port `5432` and other credentials, so override their `POSTGRES_*` env vars (or pass a full DSN) when targeting the shared stack. See each project's `AGENTS.md`.
 

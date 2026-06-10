@@ -24,13 +24,17 @@ spec/petstore-31.yaml  ──(openapi-generator-cli, see COMMANDS.md)──►  
 | **Go — Gin** | Go + Gin + `database/sql`/pgx | `go/go-gin-server/` | `go-gin-server` | `/api/v3` |
 | **Java — Spring Boot** | Java 17 + Spring Boot 3.3 + `JdbcTemplate` | `java/springboot/` | `java-springboot` | `/api/v3` |
 | **Java — Helidon** | Java 21 + Helidon MP 4 (JAX-RS/CDI) + JDBC | `java/helidon/` | `java-helidon` | `/api/v3` |
+| **Java — Quarkus** | Java 21 + Quarkus + JDBC | `java/quarkus/` | `java-quarkus` | `/api/v3` |
 | **Node.js — Express** | Node.js + Express + `pg` | `nodejs/` | `nodejs-express` | `/` (e.g. `/pet`) |
 | **Python — FastAPI** | Python + FastAPI + `asyncpg` | `python/` | `python-fastapi` | `/` (e.g. `/pet`) |
 | **Rust** | Rust + hyper + `sqlx` | `rust/` | `rust-server` | `/api/v3` |
+| **C# — ASP.NET Core** | C# + ASP.NET Core 8 + Npgsql/Dapper | `csharp/aspnetcore/` | `csharp-aspnetcore` | `/api/v3` |
+| **PHP — Laravel** | PHP + Laravel + PDO pgsql | `php/laravel/` | `php-laravel` | `/api/v3` |
+| **Ruby — Rails** | Ruby + Rails + `pg` gem | `ruby/rails/` | `ruby-rails` | `/api/v3` |
+| **Kotlin — Ktor** | Kotlin + Ktor + JDBC/HikariCP | `kotlin/ktor/` | `kotlin-ktor` | `/api/v3` |
+| **Elixir — Phoenix** | Elixir + Phoenix + Postgrex (hand-written) | `elixir/phoenix/` | `elixir-phoenix` | `/api/v3` |
 
 Every server listens on **port 8080**. Each project has its own `README.md` (setup/run) and `AGENTS.md` (implementation conventions).
-
-> A `java-quarkus` database name is reserved in the database scripts, but the Quarkus server has not been generated yet.
 
 ## Supporting Folders
 
@@ -68,6 +72,9 @@ cd java/springboot && mvn spring-boot:run
 # Java Helidon
 cd java/helidon && mvn package && java -jar target/petstore-helidon.jar
 
+# Java Quarkus
+cd java/quarkus && mvn quarkus:dev
+
 # Node.js
 cd nodejs && npm install && npm start
 
@@ -76,6 +83,21 @@ cd python && pip install -r requirements.txt && PYTHONPATH=src uvicorn petstore.
 
 # Rust
 cd rust && cargo run --example petstore-server-server
+
+# C# ASP.NET Core
+cd csharp/aspnetcore && dotnet run --project src/Petstore
+
+# PHP Laravel
+cd php/laravel && composer install && php artisan serve --port=8080
+
+# Ruby Rails
+cd ruby/rails && bundle install && bundle exec rails server -p 8080
+
+# Kotlin Ktor
+cd kotlin/ktor && ./gradlew run
+
+# Elixir Phoenix
+cd elixir/phoenix && mix deps.get && mix phx.server
 ```
 
 Run one server at a time (or change ports), since they all default to `:8080`.
@@ -101,7 +123,13 @@ tests. No database is required.
 |---|---|---|
 | Java Spring Boot | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
 | Java Helidon | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| Java Quarkus | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
 | Node.js | [Stryker](https://stryker-mutator.io) | `npm run mutate` |
 | Python | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
 | Go | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
 | Rust | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
+| C# ASP.NET Core | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet stryker` |
+| PHP Laravel | [Infection](https://infection.github.io) | `./vendor/bin/infection` |
+| Ruby Rails | [mutant](https://github.com/mbj/mutant) | `bundle exec mutant run` |
+| Kotlin Ktor | [PIT](https://pitest.org) | `./gradlew pitest` |
+| Elixir Phoenix | [muzak](https://github.com/devonestes/muzak) | `mix muzak` (best-effort) |
