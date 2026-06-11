@@ -1,0 +1,15 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE directories
+.idea/
+.vscode/
+.cursor/
+
+# Environment files at root
+.env
+.env.local

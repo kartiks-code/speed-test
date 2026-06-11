@@ -1,0 +1,11 @@
+---
+integration: rspec
+
+requires:
+  - in_memory_petstore_repository
+
+subjects:
+  - InMemoryPetstoreRepository
+
+includes:
+  - lib

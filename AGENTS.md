@@ -12,7 +12,7 @@ This repository implements the **same OpenAPI Petstore API in multiple languages
 | `go/go-gin-server/` | Go + Gin server | `go/go-gin-server/AGENTS.md` |
 | `java/springboot/` | Java 17 + Spring Boot 3.3 server | `java/springboot/AGENTS.md` |
 | `java/helidon/` | Java 21 + Helidon MP 4 server | `java/helidon/AGENTS.md` |
-| `java/quarkus/` | Java 21 + Quarkus server | `java/quarkus/AGENTS.md` |
+| `java/quarkus/` | Java 25 + Quarkus 3.36.x server (Gradle) | `java/quarkus/AGENTS.md` |
 | `nodejs/` | Node.js + Express server | `nodejs/AGENTS.md` |
 | `python/` | Python + FastAPI server | `python/AGENTS.md` |
 | `rust/` | Rust + hyper server | `rust/AGENTS.md` |
@@ -41,7 +41,7 @@ Always run commands from the project's own directory. The database must be up fi
 | `go/go-gin-server` | `go build ./...` | `go test ./...` | `go run main.go` |
 | `java/springboot` | `mvn package` | `mvn test` | `mvn spring-boot:run` |
 | `java/helidon` | `mvn package` | `mvn test` | `java -jar target/petstore-helidon.jar` |
-| `java/quarkus` | `mvn package` | `mvn test` | `mvn quarkus:dev` |
+| `java/quarkus` | `./gradlew build` | `./gradlew test` | `java -jar build/*-runner.jar` |
 | `nodejs` | `npm install` | `npm test` | `npm start` |
 | `python` | `pip install -r requirements.txt` | `PYTHONPATH=src pytest tests` | `PYTHONPATH=src uvicorn petstore.main:app --port 8080` |
 | `rust` | `cargo build` | `cargo test` | `cargo run --example petstore-server-server` |
@@ -59,7 +59,7 @@ Every project (except Rust which has limited test coverage) has a mutation testi
 |---|---|---|
 | `java/springboot` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
 | `java/helidon` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
-| `java/quarkus` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| `java/quarkus` | [PIT](https://pitest.org) | `./gradlew pitest` |
 | `nodejs` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (after `npm install`) |
 | `python` | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
 | `go/go-gin-server` | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |

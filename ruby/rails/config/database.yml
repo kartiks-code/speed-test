@@ -1,0 +1,19 @@
+default: &default
+  adapter: postgresql
+  host: <%= ENV.fetch('POSTGRES_HOST', 'localhost') %>
+  port: <%= ENV.fetch('POSTGRES_PORT', '5434').to_i %>
+  database: <%= ENV.fetch('POSTGRES_DB', 'ruby-rails') %>
+  username: <%= ENV.fetch('POSTGRES_USER', 'myuser') %>
+  password: <%= ENV.fetch('POSTGRES_PASSWORD', 'mypassword') %>
+  pool: <%= ENV.fetch('RAILS_MAX_THREADS', 5) %>
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+  database: <%= ENV.fetch('POSTGRES_DB', 'ruby-rails') %>-test
+
+production:
+  <<: *default
+  url: <%= ENV['DATABASE_URL'] %>
