@@ -28,7 +28,6 @@ EXPOSE 8080
 # G1GC with container-aware sizing; ZGC optional for low-latency profiles
 ENTRYPOINT ["java", \
   "-server", \
-  "-XX:+UseContainerSupport", \
   "-XX:MaxRAMPercentage=75.0", \
   "-XX:+UseG1GC", \
   "-XX:MaxGCPauseMillis=100", \

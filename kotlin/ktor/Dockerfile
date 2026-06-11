@@ -1,7 +1,11 @@
-FROM openjdk:8-jre-alpine
+FROM eclipse-temurin:21-jdk
 
-COPY ./build/libs/petstore-ktor.jar /root/petstore-ktor.jar
+WORKDIR /app
 
-WORKDIR /root
+COPY . .
 
-CMD ["java", "-server", "-Xms4g", "-Xmx4g", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=100", "-XX:+UseStringDeduplication", "-jar", "petstore-ktor.jar"]
+RUN ./gradlew buildFatJar && cp build/libs/*-all.jar app.jar
+
+EXPOSE 8080
+
+CMD ["java", "-jar", "app.jar"]

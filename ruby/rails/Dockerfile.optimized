@@ -1,5 +1,5 @@
 # Stage 1: install gems (production only) for a clean, cacheable layer
-FROM ruby:4.0-alpine AS deps
+FROM ruby:3.4-alpine AS deps
 
 ENV BUILD_PACKAGES="build-base curl-dev ruby-dev" \
     PG_PACKAGES="postgresql-dev"
@@ -15,7 +15,7 @@ RUN gem install bundler --no-document && \
     bundle install --jobs 4 --retry 3
 
 # Stage 2: minimal runtime — only runtime libs, no compiler/headers
-FROM ruby:4.0-alpine AS runtime
+FROM ruby:3.4-alpine AS runtime
 
 RUN apk add --no-cache libpq tzdata
 

@@ -1,0 +1,9 @@
+.git
+log/
+tmp/
+Dockerfile*
+.dockerignore
+*.md
+.env*
+node_modules/
+.bundle/
