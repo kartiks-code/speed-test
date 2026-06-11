@@ -39,7 +39,7 @@ public interface UserApi {
     @Path("/createWithList")
     @Consumes({ "application/json" })
     @Produces({ "application/json", "application/xml" })
-    User createUsersWithListInput(@Valid List<@Valid User> user);
+    User createUsersWithListInput(List<@Valid User> user);
 
     @DELETE
     @Path("/{username}")

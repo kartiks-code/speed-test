@@ -1,0 +1,35 @@
+# Gradle build output
+build/
+.gradle/
+gradle-app.setting
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Package files
+*.jar
+*.war
+*.ear
+
+# Quarkus native build
+*-runner
+*-runner.jar
+*.so
+
+# Environment variables
+.env
+
+# Mutation testing (PIT)
+target/pit-reports/
+
+# IDE / editor
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.DS_Store

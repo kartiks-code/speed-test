@@ -37,7 +37,7 @@ public class UserApiImpl implements UserApi {
     @Path("/createWithList")
     @Consumes({ "application/json" })
     @Produces({ "application/json", "application/xml" })
-    public User createUsersWithListInput(@Valid List<@Valid User> user) {
+    public User createUsersWithListInput(List<@Valid User> user) {
         if (user == null || user.isEmpty()) {
             throw new WebApplicationException("User list must not be empty", Response.Status.BAD_REQUEST);
         }
