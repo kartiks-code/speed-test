@@ -1,0 +1,40 @@
+# Stage 1: install gems (production only) for a clean, cacheable layer
+FROM ruby:4.0-alpine AS deps
+
+ENV BUILD_PACKAGES="build-base curl-dev ruby-dev" \
+    PG_PACKAGES="postgresql-dev"
+
+RUN apk add --no-cache $BUILD_PACKAGES $PG_PACKAGES tzdata
+
+WORKDIR /app
+
+COPY Gemfile Gemfile.lock ./
+RUN gem install bundler --no-document && \
+    bundle config set --local deployment true && \
+    bundle config set --local without 'development test' && \
+    bundle install --jobs 4 --retry 3
+
+# Stage 2: minimal runtime — only runtime libs, no compiler/headers
+FROM ruby:4.0-alpine AS runtime
+
+RUN apk add --no-cache libpq tzdata
+
+RUN addgroup -S rails && adduser -S rails -G rails
+
+WORKDIR /app
+
+COPY --from=deps /usr/local/bundle /usr/local/bundle
+COPY --chown=rails:rails . .
+
+RUN chmod +x bin/rails
+
+USER rails
+
+ENV RAILS_ENV=production \
+    RAILS_LOG_TO_STDOUT=true \
+    BUNDLE_DEPLOYMENT=true \
+    BUNDLE_WITHOUT="development test"
+
+EXPOSE 8080
+
+CMD ["bin/rails", "server", "-b", "0.0.0.0", "-p", "8080"]

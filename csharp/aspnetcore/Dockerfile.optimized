@@ -1,0 +1,30 @@
+# Stage 1: restore NuGet packages (cached when .csproj unchanged)
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
+WORKDIR /src
+COPY ["src/Petstore/Petstore.csproj", "Petstore/"]
+RUN dotnet restore "Petstore/Petstore.csproj"
+
+COPY src/Petstore/ Petstore/
+WORKDIR "Petstore"
+RUN dotnet publish "Petstore.csproj" \
+      -c Release \
+      -o /app/publish \
+      --no-restore
+
+# Stage 2: minimal ASP.NET runtime image (Alpine — ~100 MB vs ~200 MB Debian slim)
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS runtime
+
+RUN adduser -D -H -s /bin/false -u 1001 dotnet
+
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080 \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
+    DOTNET_GCConserveMemory=9
+
+USER dotnet
+
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "Petstore.dll"]
