@@ -138,14 +138,21 @@ class PostgresPetstoreRepository implements PetstoreRepositoryInterface
 
     public function uploadFile(int $petId, string $content): int
     {
+        $id_stmt = $this->pdo->query('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM pet_photo');
+        $next_id = (int) $id_stmt->fetchColumn();
+
         $sql = <<<SQL
-            INSERT INTO pet_photo (pet_id, content)
-            VALUES (:pet_id, :content)
-            ON CONFLICT (pet_id) DO UPDATE SET content = EXCLUDED.content
+            INSERT INTO pet_photo (id, pet_id, content)
+            VALUES (:id, :pet_id, :content)
+            ON CONFLICT (id) DO UPDATE SET
+                pet_id  = EXCLUDED.pet_id,
+                content = EXCLUDED.content
         SQL;
+
         $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':id', $next_id, PDO::PARAM_INT);
         $stmt->bindValue(':pet_id', $petId, PDO::PARAM_INT);
-        $stmt->bindValue(':content', $content, PDO::PARAM_LOB);
+        $stmt->bindValue(':content', $content, PDO::PARAM_STR);
         $stmt->execute();
         return strlen($content);
     }

@@ -40,6 +40,7 @@ RUN adduser -D -H -s /bin/false -u 1001 laravel
 WORKDIR /app
 
 COPY --from=deps /app /app
+RUN chown -R laravel:laravel /app/storage /app/bootstrap/cache
 
 USER laravel
 

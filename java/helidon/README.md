@@ -4,8 +4,10 @@ OpenAPI-generated Petstore server built on **Helidon MP 4** (MicroProfile / JAX-
 
 ## Prerequisites
 
-- JDK 21+ (required by Helidon 4)
+- JDK 21+ (required by Helidon 4; **Java 25 recommended** — the Docker images build on Temurin 25)
 - Maven 3.8+
+
+Request handling runs on **virtual threads by default** (Helidon MP 4's WebServer is Loom-based), so no extra configuration is needed. The optimized Docker image uses **G1GC** (previously ZGC); under the perf harness's `512m` memory limit the heap is small (~384MB), where G1 is more memory-efficient than ZGC.
 - Docker (with Compose v2) for the database
 
 ## Database

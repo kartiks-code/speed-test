@@ -1,7 +1,7 @@
 # Stage 1: install gems (production only) for a clean, cacheable layer
 FROM ruby:3.4-alpine AS deps
 
-ENV BUILD_PACKAGES="build-base curl-dev ruby-dev" \
+ENV BUILD_PACKAGES="build-base curl-dev ruby-dev yaml-dev" \
     PG_PACKAGES="postgresql-dev"
 
 RUN apk add --no-cache $BUILD_PACKAGES $PG_PACKAGES tzdata
@@ -9,9 +9,10 @@ RUN apk add --no-cache $BUILD_PACKAGES $PG_PACKAGES tzdata
 WORKDIR /app
 
 COPY Gemfile Gemfile.lock ./
+# Install to /usr/local/bundle so it's easy to copy as a layer
+ENV BUNDLE_PATH=/usr/local/bundle \
+    BUNDLE_WITHOUT="development test"
 RUN gem install bundler --no-document && \
-    bundle config set --local deployment true && \
-    bundle config set --local without 'development test' && \
     bundle install --jobs 4 --retry 3
 
 # Stage 2: minimal runtime — only runtime libs, no compiler/headers
@@ -23,16 +24,22 @@ RUN addgroup -S rails && adduser -S rails -G rails
 
 WORKDIR /app
 
+# Copy bundled gems from deps stage
 COPY --from=deps /usr/local/bundle /usr/local/bundle
-COPY --chown=rails:rails . .
 
-RUN chmod +x bin/rails
+# Copy application code from build context
+COPY . .
+
+# Pre-create writable directories and set ownership
+RUN mkdir -p tmp log && \
+    chown -R rails:rails /app && \
+    chmod +x bin/rails
 
 USER rails
 
 ENV RAILS_ENV=production \
     RAILS_LOG_TO_STDOUT=true \
-    BUNDLE_DEPLOYMENT=true \
+    BUNDLE_PATH=/usr/local/bundle \
     BUNDLE_WITHOUT="development test"
 
 EXPOSE 8080

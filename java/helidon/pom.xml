@@ -17,6 +17,9 @@
 
     <properties>
         <version.jackson.databind.nullable>0.2.10</version.jackson.databind.nullable>
+        <!-- Helidon 4 baseline is JDK 21; JDK 25 is recommended. Parent derives
+             maven.compiler.target/release from maven.compiler.source. -->
+        <maven.compiler.source>25</maven.compiler.source>
     </properties>
 
     <dependencies>

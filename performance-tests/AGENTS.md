@@ -15,6 +15,8 @@ See `README.md` for operator-facing usage (prerequisites, quick start, environme
 | `k6/crud.js` | CRUD load script; parameterized by `BASE_URL`, `BASE_PATH`, `VUS`, `DURATION`, and optionally `AUTH_HEADER` env vars |
 | `report.py` | Reads all `results/*/` directories → writes `results/comparison.csv` and `results/comparison.md` |
 | `results/` | One directory per run, named `<stack>-<variant>-<timestamp>`; gitignored |
+| `viewer/` | React + Vite SPA for browsing and comparing results visually; run `npm install && npm run dev` |
+| `viewer/scripts/build-data.mjs` | Node generator: scans `results/`, emits `viewer/public/data/index.json` + per-run JSON; runs automatically via `predev`/`prebuild` |
 
 ## How `run.sh` Works
 
@@ -45,6 +47,8 @@ Each entry is an object with these fields:
 | `dockerfile` | yes | Naive Dockerfile name (almost always `"Dockerfile"`) |
 | `dockerfile_optimized` | yes | Optimized Dockerfile name (almost always `"Dockerfile.optimized"`) |
 | `db_name` | yes | Postgres database name to truncate and snapshot |
+| `host_port` | yes | Host port published for the naive container (`-p host_port:8080`); allows all stacks to run simultaneously |
+| `host_port_optimized` | yes | Host port published for the optimized container; must differ from `host_port` |
 | `base_path` | yes | URL prefix for all API routes (e.g. `"/api/v3"` or `""`) |
 | `readiness_path` | yes | Path appended to `http://<container>:8080` for the readiness probe |
 | `readiness_timeout` | no | Seconds to wait for readiness (default: `READINESS_TIMEOUT` env var, default 90) |
@@ -54,10 +58,31 @@ Each entry is an object with these fields:
 | `cmd_override` | no | JSON array replacing the container `CMD` |
 | `notes` | no | Free-text notes for humans |
 
+## Host Port Assignments
+
+Each stack gets two unique host ports (naive / optimized) so all 24 containers can run simultaneously. All containers still bind internally on **8080**; only the host-side mapping differs.
+
+| Stack | Naive | Optimized |
+|---|---|---|
+| go | 8081 | 8082 |
+| springboot | 8083 | 8084 |
+| helidon | 8085 | 8086 |
+| quarkus | 8087 | 8088 |
+| nodejs | 8089 | 8090 |
+| python | 8091 | 8092 |
+| rust | 8093 | 8094 |
+| csharp | 8095 | 8096 |
+| laravel | 8097 | 8098 |
+| rails | 8099 | 8100 |
+| ktor | 8101 | 8102 |
+| phoenix | 8103 | 8104 |
+
+When adding a new stack, pick the next two available ports starting from 8105 and set `host_port` / `host_port_optimized` in `stacks.json`.
+
 ## Adding a New Stack
 
 1. Add a `Dockerfile` (and optionally `Dockerfile.optimized`) to the project directory.
-2. Add an entry to `stacks.json` with all required fields. Set `POSTGRES_HOST` to `"speed-test-postgres"` and `POSTGRES_PORT` to `"5432"` (the in-network address of the Postgres container).
+2. Add an entry to `stacks.json` with all required fields. Set `POSTGRES_HOST` to `"speed-test-postgres"` and `POSTGRES_PORT` to `"5432"` (the in-network address of the Postgres container). Choose the next available `host_port` / `host_port_optimized` pair from the table above (start at 8105).
 3. Ensure the project's database exists: `cd database && ./create-databases.sh && ./apply-schemas.sh`.
 4. Smoke-test:
    ```bash

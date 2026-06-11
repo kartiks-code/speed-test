@@ -1,5 +1,6 @@
 package org.openapitools.server.api;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -21,6 +22,7 @@ import java.util.List;
 
 @Path("/user")
 @ApplicationScoped
+@RunOnVirtualThread
 public class UserApiImpl implements UserApi {
 
     @Inject

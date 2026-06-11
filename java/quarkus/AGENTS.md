@@ -1,6 +1,6 @@
 # Java Quarkus Server — Agent Guide
 
-OpenAPI Petstore server on Quarkus 3.36.x (latest) with JAX-RS resources, Arc CDI, Agroal connection pooling, and plain-JDBC persistence. Built with Gradle 9.5.x (Groovy DSL) on Java 25.
+OpenAPI Petstore server on Quarkus 3.36.x (latest) with JAX-RS resources, Arc CDI, Agroal connection pooling, and plain-JDBC persistence. Built with Gradle 9.5.x (Groovy DSL) on Java 25. All endpoints run on virtual threads via `@RunOnVirtualThread`, and the optimized Docker image (`Dockerfile.optimized`) runs on Temurin 25 with `-XX:+UseG1GC`.
 
 ## Working Directory
 
@@ -48,7 +48,8 @@ src/main/java/org/openapitools/server/
 
 ## Conventions
 
-- `*ApiImpl` classes are thin JAX-RS resources annotated `@ApplicationScoped`; they `@Inject` a repository and delegate. Put endpoint logic here.
+- `*ApiImpl` classes are thin JAX-RS resources annotated `@ApplicationScoped` and `@io.smallrye.common.annotation.RunOnVirtualThread`; they `@Inject` a repository and delegate. Put endpoint logic here.
+- All endpoints run on **virtual threads**: the class-level `@RunOnVirtualThread` (provided transitively by `quarkus-rest`) is applied to all three `*ApiImpl` classes. Quarkus has no global virtual-thread switch, so it is enabled per JAX-RS resource/method. This suits the blocking JDBC (Agroal) persistence used here.
 - Repositories are `@ApplicationScoped`, `@Inject` Agroal `javax.sql.DataSource`, and use plain JDBC (`Connection`/`PreparedStatement`). No ORM.
 - Errors are signaled with `jakarta.ws.rs.WebApplicationException` carrying the right status (404 not found, 400 bad request); these propagate to the HTTP response.
 - `category`, `photo_urls`, and `tags` are JSON columns written with Jackson `ObjectMapper` and `cast(? as json)`. `category` is stored as a JSON string.

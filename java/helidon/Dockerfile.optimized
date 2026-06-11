@@ -1,5 +1,5 @@
 # Stage 1: dependency cache — only re-runs when pom.xml changes
-FROM maven:3.9-eclipse-temurin-21-alpine AS deps
+FROM maven:3.9-eclipse-temurin-25-alpine AS deps
 WORKDIR /app
 COPY pom.xml .
 RUN mvn dependency:go-offline -q
@@ -9,24 +9,25 @@ FROM deps AS build
 COPY src ./src
 RUN mvn package -DskipTests -q
 
-# Stage 3: minimal runtime image with Java 21 virtual-thread-capable JRE
-FROM eclipse-temurin:21-jre-alpine AS runtime
+# Stage 3: minimal runtime image with Java 25 virtual-thread-capable JRE
+FROM eclipse-temurin:25-jre-alpine AS runtime
 
 RUN addgroup -S helidon && adduser -S helidon -G helidon
 
 WORKDIR /app
 
 COPY --from=build /app/target/petstore-helidon.jar app.jar
+COPY --from=build /app/target/libs libs
 
 USER helidon:helidon
 
 EXPOSE 8080
 
-# ZGC + generational mode suits Helidon 4 virtual-thread workloads;
-# MaxRAMPercentage caps heap at 75% of cgroup memory limit.
+# G1GC is used because the container heap is small (~384MB under the 512MB
+# limit at MaxRAMPercentage=75); at that size G1 is more memory-efficient and
+# lower-overhead than ZGC. MaxRAMPercentage caps heap at 75% of cgroup memory.
 ENTRYPOINT ["java", \
   "-XX:MaxRAMPercentage=75.0", \
-  "-XX:+UseZGC", \
-  "-XX:+ZGenerational", \
+  "-XX:+UseG1GC", \
   "-Djava.security.egd=file:/dev/./urandom", \
   "-jar", "app.jar"]

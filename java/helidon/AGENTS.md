@@ -14,7 +14,7 @@ java -jar target/petstore-helidon.jar
 mvn test                             # tests only
 ```
 
-Requires JDK 21+ (Helidon 4) and Maven 3.8+.
+Requires JDK 21+ (Helidon 4; **Java 25 recommended** and used by the Docker images) and Maven 3.8+. Compiles to release 25 (`maven.compiler.source=25` in `pom.xml`). Helidon MP 4's WebServer is Loom-based, so request handling runs on **virtual threads by default** — no code change needed.
 
 ## Database
 
@@ -76,6 +76,11 @@ mvn test-compile org.pitest:pitest-maven:mutationCoverage -DwithHistory
 A surviving mutant means no test distinguishes the mutated bytecode from the
 original. Fix survivors by adding a sharper assertion or confirm they are
 equivalent mutations.
+
+## Docker
+
+- `Dockerfile` (naive) and `Dockerfile.optimized` build on Temurin 25.
+- The optimized image uses **G1GC** (`-XX:+UseG1GC`), not ZGC: with `--cpus 2 --memory 512m` the heap is only ~384MB at `MaxRAMPercentage=75`, where G1 is more memory-efficient and lower-overhead than ZGC. (`-XX:+ZGenerational` was also dropped — it is obsolete on Java 25, where generational ZGC is the default.)
 
 ## Verification
 

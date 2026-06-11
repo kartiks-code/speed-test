@@ -1,6 +1,6 @@
 # Java Spring Boot Server — Agent Guide
 
-OpenAPI-generated Petstore server on Spring Boot 3.3 with PostgreSQL persistence via `JdbcTemplate`.
+OpenAPI-generated Petstore server on Spring Boot 3.5.15 (Java 25) with PostgreSQL persistence via `JdbcTemplate`. Virtual threads are enabled via `spring.threads.virtual.enabled=true`.
 
 ## Working Directory
 
@@ -15,7 +15,9 @@ mvn spring-boot:run                      # run without packaging
 mvn test                                 # tests only
 ```
 
-Requires JDK 17+ and Maven 3.8+.
+Requires JDK 25+ and Maven 3.8+.
+
+The optimized Docker image (`Dockerfile.optimized`, Temurin 25 JRE) runs with **G1GC** (`-XX:+UseG1GC`), chosen for the perf harness's `--cpus 2 --memory 512m` container limits.
 
 ## Database
 

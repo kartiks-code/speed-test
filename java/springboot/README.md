@@ -1,10 +1,10 @@
 # Java Spring Boot — Petstore Server
 
-OpenAPI-generated Petstore server built on **Spring Boot 3.3** with PostgreSQL persistence via Spring's `JdbcTemplate`.
+OpenAPI-generated Petstore server built on **Spring Boot 3.5.15** (Java 25) with PostgreSQL persistence via Spring's `JdbcTemplate`. Virtual threads are enabled (`spring.threads.virtual.enabled=true`).
 
 ## Prerequisites
 
-- JDK 17+
+- JDK 25+
 - Maven 3.8+
 - Docker (with Compose v2) for the database
 
@@ -51,6 +51,10 @@ The server listens on `http://localhost:8080` and serves the API under `/api/v3`
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+
+### Docker
+
+`Dockerfile` builds a simple image; `Dockerfile.optimized` produces a layered Temurin 25 JRE image that runs with **G1GC** (`-XX:+UseG1GC`, `-XX:MaxRAMPercentage=75.0`), tuned for the `--cpus 2 --memory 512m` performance-test limits.
 
 ## Try It
 

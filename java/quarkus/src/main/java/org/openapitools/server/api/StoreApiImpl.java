@@ -1,5 +1,6 @@
 package org.openapitools.server.api;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import java.util.Map;
 
 @Path("/store")
 @ApplicationScoped
+@RunOnVirtualThread
 public class StoreApiImpl implements StoreApi {
 
     @Inject

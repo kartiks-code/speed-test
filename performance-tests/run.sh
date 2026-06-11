@@ -252,13 +252,24 @@ run_one() {
         done <<< "$cmd_json"
     fi
 
-    log "Starting container $container_name ..."
+    # Resolve the host port for this stack+variant from stacks.json
+    local host_port_field
+    if [[ "$variant" == "optimized" ]]; then
+        host_port_field="host_port_optimized"
+    else
+        host_port_field="host_port"
+    fi
+    local host_port
+    host_port=$(stack_field "$stack_id" "$host_port_field")
+
+    log "Starting container $container_name (host port ${host_port} → container 8080) ..."
     docker run -d \
         --name "$container_name" \
         --network "$DOCKER_NETWORK" \
         --cpus "$APP_CPUS" \
         --memory "$APP_MEMORY" \
         --env-file "$env_file" \
+        ${host_port:+-p "${host_port}:8080"} \
         "${entrypoint_flag[@]}" \
         "$image_name" \
         "${cmd_override_args[@]}"
@@ -348,8 +359,10 @@ run_one() {
         --arg app_cpus "$APP_CPUS" \
         --arg app_memory "$APP_MEMORY" \
         --arg ts "$ts" \
+        --argjson host_port "${host_port:-null}" \
         '{run_id: $run_id, stack_id: $stack_id, label: $label, variant: $variant,
           dockerfile: $dockerfile, db_name: $db_name,
+          host_port: $host_port,
           vus: ($vus|tonumber), duration: $duration,
           app_cpus: ($app_cpus|tonumber), app_memory: $app_memory,
           timestamp: $ts}' \

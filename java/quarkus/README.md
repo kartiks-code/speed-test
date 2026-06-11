@@ -4,6 +4,8 @@ Petstore API implementation using [Quarkus](https://quarkus.io/) 3.36.x (latest)
 
 The API is served under `/api/v3` on port 8080 and backed by the shared PostgreSQL 17 database in `../../database/`.
 
+All endpoints run on **Java virtual threads** via `@io.smallrye.common.annotation.RunOnVirtualThread` (from `quarkus-rest`). Quarkus has no global virtual-thread switch, so the annotation is applied at the class level on each JAX-RS resource (`PetApiImpl`, `StoreApiImpl`, `UserApiImpl`), which is well-suited to the blocking JDBC persistence. The optimized Docker image (`Dockerfile.optimized`) runs on Temurin 25 with `-XX:+UseG1GC`.
+
 ## Quick Start
 
 ```bash
