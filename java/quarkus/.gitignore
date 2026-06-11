@@ -1,6 +1,6 @@
 # Gradle build output
 build/
-#.gradle/
+.gradle/
 gradle-app.setting
 
 # Compiled class files
