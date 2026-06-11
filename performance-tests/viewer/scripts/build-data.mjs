@@ -202,6 +202,8 @@ function loadRun(runDir) {
     duration: meta.duration || "",
     app_cpus: meta.app_cpus ?? null,
     app_memory: meta.app_memory || "",
+    k6_script: meta.k6_script || null,
+    mix: meta.mix || null,
     k6_rps: k6.k6_rps,
     k6_avg_ms: k6.k6_avg_ms,
     k6_p50_ms: k6.k6_p50_ms,
@@ -228,6 +230,8 @@ function loadRun(runDir) {
       duration: summary.duration,
       app_cpus: summary.app_cpus,
       app_memory: summary.app_memory,
+      k6_script: summary.k6_script,
+      mix: summary.mix,
     },
     k6: {
       rps: k6.k6_rps,

@@ -383,4 +383,4 @@ python3 report.py
 | report | Implement report.py | ✅ DONE |
 | smoke-go | End-to-end smoke test with Go (naive + optimized) | ✅ DONE |
 | validate-all | Validate boot + mini-run for all 13 stacks (naive + optimized) | ✅ DONE — all naive + optimized variants validated; required fixes for springboot (2), helidon (2), quarkus (3), ktor (1), phoenix (5) naive; optimized fixes: nodejs (lock file), csharp (auth middleware + sync IO), rust (cargo config), laravel (SQL + opcache + permissions), rails (yaml-dev + Dockerfile), helidon (libs copy), phoenix (base image + prod.exs). |
-| docs | Write performance-tests README/AGENTS.md and update root AGENTS.md | ⏳ NOT STARTED |
+| docs | Write performance-tests README/AGENTS.md and update root AGENTS.md | ✅ DONE |

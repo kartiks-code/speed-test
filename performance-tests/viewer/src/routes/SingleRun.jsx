@@ -131,6 +131,18 @@ export default function SingleRun() {
             <span className="badge"><strong>CPUs</strong> {run.meta.app_cpus ?? "—"}</span>
             <span className="badge"><strong>Memory</strong> {run.meta.app_memory || "—"}</span>
             <span className="badge"><strong>Timestamp</strong> {run.meta.timestamp}</span>
+            {run.meta.k6_script && (
+              <span className="badge"><strong>Script</strong> {run.meta.k6_script}</span>
+            )}
+            {run.meta.mix && (
+              <span className="badge">
+                <strong>Mix</strong>{" "}
+                C{run.meta.mix.create ?? 25}&thinsp;
+                R{run.meta.mix.read   ?? 25}&thinsp;
+                U{run.meta.mix.update ?? 25}&thinsp;
+                D{run.meta.mix.delete ?? 25}
+              </span>
+            )}
           </div>
 
           {/* Stat cards */}

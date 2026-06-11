@@ -24,6 +24,18 @@
 #   NO_BUILD      Set to 1 to skip docker build (use existing images)
 #   KEEP_RESULTS  Set to 1 to keep results even on failure (default: clean up on error)
 #
+# CRUD-mix options (used when K6_SCRIPT_NAME=crud-mix.js):
+#   K6_SCRIPT_NAME   k6 script filename inside k6/ dir (default: crud.js)
+#   MIX_CREATE    Relative weight for Create operations (default: 25)
+#   MIX_READ      Relative weight for Read operations   (default: 25)
+#   MIX_UPDATE    Relative weight for Update operations (default: 25)
+#   MIX_DELETE    Relative weight for Delete operations (default: 25)
+#
+# Custom Dockerfile:
+#   DOCKERFILE_OVERRIDE  Path (relative to build_context) to use instead of the
+#                        variant-derived Dockerfile; variant arg is used as-is for
+#                        the results dir/label when this is set.
+#
 # Prerequisites:
 #   - Docker with Unix socket at /var/run/docker.sock
 #   - Python 3 (stdlib only) for sampler.py and report.py
@@ -48,6 +60,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 : "${NO_BUILD:=0}"
 : "${KEEP_RESULTS:=0}"
 : "${READINESS_TIMEOUT:=90}"
+: "${K6_SCRIPT_NAME:=crud.js}"
+: "${MIX_CREATE:=25}"
+: "${MIX_READ:=25}"
+: "${MIX_UPDATE:=25}"
+: "${MIX_DELETE:=25}"
+: "${DOCKERFILE_OVERRIDE:=}"
 
 export PGHOST PGPORT PGUSER PGPASSWORD
 
@@ -57,7 +75,7 @@ POSTGRES_CONTAINER="speed-test-postgres"
 PG_STATS="$SCRIPT_DIR/pg-stats.sh"
 SAMPLER="$SCRIPT_DIR/sampler.py"
 STACKS_JSON="$SCRIPT_DIR/stacks.json"
-K6_SCRIPT="$SCRIPT_DIR/k6/crud.js"
+K6_SCRIPT="$SCRIPT_DIR/k6/${K6_SCRIPT_NAME}"
 RESULTS_BASE="$SCRIPT_DIR/results"
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -182,7 +200,10 @@ run_one() {
     readiness_path=$(stack_field "$stack_id" "readiness_path")
 
     local dockerfile
-    if [[ "$variant" == "optimized" ]]; then
+    if [[ -n "$DOCKERFILE_OVERRIDE" ]]; then
+        dockerfile="$DOCKERFILE_OVERRIDE"
+        # variant is used as-is when an override is provided
+    elif [[ "$variant" == "optimized" ]]; then
         dockerfile="Dockerfile.optimized"
     else
         dockerfile="Dockerfile"
@@ -310,20 +331,24 @@ run_one() {
     local auth_header
     auth_header=$(stack_field "$stack_id" "auth_header")
 
-    log "Running k6 (VUS=$VUS DURATION=$DURATION) ..."
+    log "Running k6 (VUS=$VUS DURATION=$DURATION SCRIPT=$K6_SCRIPT_NAME) ..."
     # Allow non-zero exit (threshold violations) so a single stack's issues don't abort the suite
     docker run --rm \
         --network "$DOCKER_NETWORK" \
-        -v "$K6_SCRIPT:/scripts/crud.js:ro" \
+        -v "$K6_SCRIPT:/scripts/${K6_SCRIPT_NAME}:ro" \
         -v "$results_dir:/results" \
         -e "BASE_URL=${app_url}" \
         -e "BASE_PATH=${base_path}" \
         -e "VUS=${VUS}" \
         -e "DURATION=${DURATION}" \
         ${auth_header:+-e "AUTH_HEADER=${auth_header}"} \
+        -e "MIX_CREATE=${MIX_CREATE}" \
+        -e "MIX_READ=${MIX_READ}" \
+        -e "MIX_UPDATE=${MIX_UPDATE}" \
+        -e "MIX_DELETE=${MIX_DELETE}" \
         grafana/k6:latest run \
             --summary-export /results/k6-summary.json \
-            /scripts/crud.js \
+            "/scripts/${K6_SCRIPT_NAME}" \
         2>&1 | tee "$results_dir/k6.log" || true
     log "k6 complete"
 
@@ -360,12 +385,19 @@ run_one() {
         --arg app_memory "$APP_MEMORY" \
         --arg ts "$ts" \
         --argjson host_port "${host_port:-null}" \
+        --arg k6_script "$K6_SCRIPT_NAME" \
+        --argjson mix_create "$MIX_CREATE" \
+        --argjson mix_read "$MIX_READ" \
+        --argjson mix_update "$MIX_UPDATE" \
+        --argjson mix_delete "$MIX_DELETE" \
         '{run_id: $run_id, stack_id: $stack_id, label: $label, variant: $variant,
           dockerfile: $dockerfile, db_name: $db_name,
           host_port: $host_port,
           vus: ($vus|tonumber), duration: $duration,
           app_cpus: ($app_cpus|tonumber), app_memory: $app_memory,
-          timestamp: $ts}' \
+          timestamp: $ts,
+          k6_script: $k6_script,
+          mix: {create: $mix_create, read: $mix_read, update: $mix_update, delete: $mix_delete}}' \
         > "$results_dir/run-meta.json"
 
     log "Results saved to $results_dir"

@@ -2,7 +2,7 @@
 
 Docker-based benchmark harness for the Petstore multi-language speed test. Builds each stack as a Docker image, starts it against the shared Postgres container, runs a k6 CRUD load test, and collects RPS, latency, CPU, RAM, and Postgres statistics. All 13 stacks are supported, each in a `naive` variant (stock Dockerfile) and an `optimized` variant (`Dockerfile.optimized`).
 
-See `README.md` for operator-facing usage (prerequisites, quick start, environment variables).
+See `README.md` for operator-facing usage (prerequisites, quick start, environment variables). See `viewer/README.md` for the React SPA that visualises run results.
 
 ## File Roles
 
@@ -12,28 +12,42 @@ See `README.md` for operator-facing usage (prerequisites, quick start, environme
 | `stacks.json` | Per-stack config: build context, Dockerfile paths, env vars, `base_path`, `readiness_path`, `readiness_timeout`, optional `entrypoint_override` and `cmd_override` |
 | `sampler.py` | Polls Docker Engine API via Unix socket every 1 s → writes `docker-stats.csv` for the app container + Postgres container |
 | `pg-stats.sh` | Snapshots and diffs `pg_stat_database`, `pg_stat_io`, `pg_stat_statements`; also resets stats counters and enables the extension |
-| `k6/crud.js` | CRUD load script; parameterized by `BASE_URL`, `BASE_PATH`, `VUS`, `DURATION`, and optionally `AUTH_HEADER` env vars |
+| `k6/crud.js` | Fixed full CRUD cycle script (original); unchanged |
+| `k6/crud-mix.js` | Weighted operation mix script; driven by `MIX_CREATE/READ/UPDATE/DELETE` env vars; seeds a pet pool in `setup()` then picks one operation per VU iteration by normalized weight |
 | `report.py` | Reads all `results/*/` directories → writes `results/comparison.csv` and `results/comparison.md` |
 | `results/` | One directory per run, named `<stack>-<variant>-<timestamp>`; gitignored |
-| `viewer/` | React + Vite SPA for browsing and comparing results visually; run `npm install && npm run dev` |
+| `server/` | Local Node control server (Express); exposes `/api/stacks`, `/api/queue`, `/api/events` (SSE); manages the sequential run queue; spawns `run.sh` |
+| `viewer/` | React + Vite SPA for browsing results and triggering new runs; run `npm install && npm run dev` |
 | `viewer/scripts/build-data.mjs` | Node generator: scans `results/`, emits `viewer/public/data/index.json` + per-run JSON; runs automatically via `predev`/`prebuild` |
 
 ## How `run.sh` Works
 
 1. Parse stack id and variant (`naive` / `optimized`) from CLI arguments.
 2. Read `stacks.json` via `jq` to get `build_context`, `db_name`, `base_path`, `readiness_path`, `readiness_timeout`, and any overrides.
-3. `docker build` the stack's Dockerfile (skipped if `NO_BUILD=1`); stream output to `build.log`.
-4. Write a temp env-file from `stacks.json`'s `env` block (skip `PLACEHOLDER_*` values); inject secrets from caller's environment (`LARAVEL_APP_KEY`, `RAILS_SECRET_KEY_BASE`, `PHOENIX_SECRET_KEY_BASE`).
-5. `docker run -d` the image on the `database_default` network with CPU/memory limits and the env-file; apply `entrypoint_override` / `cmd_override` if present in `stacks.json`.
-6. Poll the readiness URL (`http://<container>:8080<readiness_path>`) via `curlimages/curl` on the same network until HTTP 200 or timeout.
-7. Reset Postgres stats and take `pg-before.json` snapshot via `pg-stats.sh`.
-8. Start `sampler.py` in the background.
-9. Run k6 (`grafana/k6:latest`) on the same network, mounting `k6/crud.js` and the results directory; pass `BASE_URL`, `BASE_PATH`, `VUS`, `DURATION`, and optionally `AUTH_HEADER`. Exit code is non-fatal (`|| true`).
-10. Kill `sampler.py`.
-11. Take `pg-after.json` snapshot and compute `pg-delta.json`.
-12. Save `container.log` from `docker logs`.
-13. `docker rm -f` the app container.
-14. Write `run-meta.json` with stack id, variant, limits, and timestamp.
+3. Determine the Dockerfile: use `DOCKERFILE_OVERRIDE` env if set; otherwise map `optimized`→`Dockerfile.optimized`, anything else→`Dockerfile` and normalise variant to `naive`.
+4. `docker build` the stack's Dockerfile (skipped if `NO_BUILD=1`); stream output to `build.log`.
+5. Write a temp env-file from `stacks.json`'s `env` block (skip `PLACEHOLDER_*` values); inject secrets from caller's environment (`LARAVEL_APP_KEY`, `RAILS_SECRET_KEY_BASE`, `PHOENIX_SECRET_KEY_BASE`).
+6. `docker run -d` the image on the `database_default` network with CPU/memory limits and the env-file; apply `entrypoint_override` / `cmd_override` if present in `stacks.json`.
+7. Poll the readiness URL (`http://<container>:8080<readiness_path>`) via `curlimages/curl` on the same network until HTTP 200 or timeout.
+8. Reset Postgres stats and take `pg-before.json` snapshot via `pg-stats.sh`.
+9. Start `sampler.py` in the background.
+10. Run k6 (`grafana/k6:latest`) on the same network, mounting `k6/${K6_SCRIPT_NAME}` and the results directory; pass `BASE_URL`, `BASE_PATH`, `VUS`, `DURATION`, `AUTH_HEADER` (if set), and `MIX_CREATE/READ/UPDATE/DELETE`. Exit code is non-fatal (`|| true`).
+11. Kill `sampler.py`.
+12. Take `pg-after.json` snapshot and compute `pg-delta.json`.
+13. Save `container.log` from `docker logs`.
+14. `docker rm -f` the app container.
+15. Write `run-meta.json` with stack id, variant, limits, timestamp, `k6_script`, and `mix` object.
+
+### Additional environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `K6_SCRIPT_NAME` | `crud.js` | k6 script filename inside `k6/` |
+| `MIX_CREATE` | `25` | Relative weight for Create operations |
+| `MIX_READ` | `25` | Relative weight for Read operations |
+| `MIX_UPDATE` | `25` | Relative weight for Update operations |
+| `MIX_DELETE` | `25` | Relative weight for Delete operations |
+| `DOCKERFILE_OVERRIDE` | _(empty)_ | Explicit Dockerfile path relative to `build_context`; variant arg used as-is |
 
 ## `stacks.json` Schema
 
@@ -89,6 +103,32 @@ When adding a new stack, pick the next two available ports starting from 8105 an
    VUS=3 DURATION=15s ./run.sh <stack_id> naive
    ```
 5. Check `results/<stack_id>-naive-<ts>/k6-summary.json` for errors. Check `container.log` if the container failed to start.
+
+## Viewer (`viewer/`)
+
+A React + Vite SPA for exploring results visually and triggering new runs. Run with `npm install && npm run dev` from `viewer/`. The `predev`/`prebuild` scripts call `scripts/build-data.mjs`, which scans `../results/` and emits `viewer/public/data/index.json` plus per-run JSON files. These generated files are gitignored.
+
+Pages: **Single Run** (`/`), **Compare** (`/compare`), **Run Tests** (`/run`), **Queue** (`/queue`).
+
+The **Run Tests** and **Queue** pages require the control server to be running (`server/`). Vite proxies all `/api` requests to `127.0.0.1:5179`.
+
+When editing the viewer:
+- All result data is read from `public/data/` at runtime — never from the filesystem directly.
+- After adding new benchmark runs, the viewer data must be regenerated: `node scripts/build-data.mjs` or restart `npm run dev`.
+- The control server (`server/`) is a separate process — start it with `npm run server` from `viewer/` or `npm start` from `server/`.
+- `viewer/node_modules/`, `viewer/dist/`, and `viewer/public/data/` are all gitignored.
+
+## Control Server (`server/`)
+
+A local Express server that powers the run-triggering UI. See `server/README.md` for the full API reference.
+
+**Start:** `cd server && npm install && npm start`
+
+Key behaviours:
+- Jobs are processed strictly one at a time (sequential queue).
+- On job completion, `build-data.mjs` is run automatically so results appear in the viewer without a restart.
+- The server is local-only (`127.0.0.1`), no authentication.
+- `CONTROL_PORT` env var overrides the default port `5179`.
 
 ## Known Quirks (Already Fixed in Code)
 

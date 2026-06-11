@@ -8,7 +8,9 @@
     "dev": "vite",
     "prebuild": "node scripts/build-data.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node ../server/index.mjs",
+    "dev:all": "node ../server/index.mjs & npm run dev"
   },
   "dependencies": {
     "react": "^18.3.1",

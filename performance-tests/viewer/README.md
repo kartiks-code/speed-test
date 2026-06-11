@@ -1,13 +1,16 @@
 # Petstore Benchmark Viewer
 
-A React + Vite single-page app for exploring and comparing benchmark run results.
+A React + Vite single-page app for exploring and comparing benchmark run results, and for triggering new runs through the browser UI.
 
 ## Prerequisites
 
 - Node.js 18+
-- Benchmark results in `performance-tests/results/` (at least one completed run with `run-meta.json`)
+- For viewing existing results: at least one completed run in `performance-tests/results/`
+- For running new tests: all `performance-tests/` prerequisites (Docker, jq, psql, Python 3, shared Postgres container running)
 
 ## Quick start
+
+### View-only (no control server needed)
 
 ```bash
 cd performance-tests/viewer
@@ -17,34 +20,68 @@ npm run dev
 
 Open the URL printed by Vite (typically `http://localhost:5173`).
 
-The data generator (`scripts/build-data.mjs`) runs automatically before `dev` and `build`. It scans `../results/` and writes static JSON to `public/data/`. Re-run `npm run dev` (or `node scripts/build-data.mjs` manually) after adding new benchmark runs.
+### With the control server (Run Tests + Queue pages)
+
+```bash
+# Terminal 1 — control server
+cd performance-tests/server
+npm install
+npm start
+
+# Terminal 2 — viewer
+cd performance-tests/viewer
+npm run dev
+```
+
+Or use the combined shortcut:
+
+```bash
+cd performance-tests/viewer
+npm run dev:all
+```
+
+The control server listens on `http://127.0.0.1:5179`. Vite proxies all `/api` requests to it automatically.
 
 ## Pages
 
 ### Single Run (`/`)
 
-Pick a stack from the first dropdown, then a specific run from the second. Charts shown:
+Pick a stack, duration, and specific run. Displays:
 
 - Stat cards: RPS, avg/p95/p99 latency, error rate, total requests, CPU peak, RAM peak
+- Meta badges: Stack, Variant, VUs, Duration, CPUs, Memory, Timestamp — plus **Script** and **Mix** badges when the run used `crud-mix.js`
 - Latency breakdown bar chart (avg, p50, p90, p95, p99, max)
 - Resource summary table (CPU avg/peak, RAM avg/peak, net, block I/O)
-- CPU usage over run (time series)
-- RAM usage over run (time series)
+- CPU and RAM time-series charts
 - Per-endpoint checks (passes vs fails per k6 check)
-- PostgreSQL counters delta (xacts, blks read/hit, tup counts)
+- PostgreSQL counters delta
 
 ### Compare (`/compare`)
 
-Select up to 4 stack/run combinations. Each series gets a distinct color. Charts:
+Select up to 4 stack/run combinations. Each series gets a distinct color. Grouped bar and line-overlay charts for RPS, error rate, latency percentiles, CPU, RAM, and Postgres counters.
 
-- RPS comparison
-- Error rate comparison
-- Latency percentiles (p50/p90/p95/p99) — grouped bars
-- CPU usage (avg/peak) — grouped bars
-- RAM usage (avg/peak) — grouped bars
-- PostgreSQL counters — grouped bars
-- CPU usage over time — line overlay
-- RAM usage over time — line overlay
+### Run Tests (`/run`) — requires control server
+
+Form to configure and queue a benchmark run:
+
+- **Stack** — pick from all 12 stacks (loaded live from the control server)
+- **Variant** — all `Dockerfile*` files in the stack's directory are discovered automatically (`naive`, `optimized`, or custom)
+- **Duration** — in seconds (5–3600)
+- **Virtual Users** — k6 VU count
+- **Operation Mix** — four sliders (Create / Read / Update / Delete) with normalized percentage preview and visual bar. Uses `k6/crud-mix.js` under the hood; `k6/crud.js` is unchanged.
+
+Submitting adds the job to the queue and redirects to the Queue page.
+
+### Queue (`/queue`) — requires control server
+
+Live queue view:
+
+- Status badges (Pending / Running / Done / Failed / Canceled)
+- Running job pulses with an animated border
+- Click any job to show its log in the side panel
+- Log panel with auto-scroll toggle streams `run.sh` stdout/stderr in real time via SSE
+- Cancel buttons for pending jobs
+- "View results →" deep-link on completed jobs (opens Single Run for that run)
 
 ## Production build
 
@@ -54,6 +91,8 @@ npm run build
 npx serve dist
 ```
 
+The control server must still be running separately for the Run Tests and Queue pages to work.
+
 ## Data pipeline
 
 ```
@@ -61,4 +100,6 @@ results/<run>/  →  scripts/build-data.mjs  →  public/data/index.json
                                             →  public/data/runs/<run_id>.json
 ```
 
-`public/data/` and `node_modules/` and `dist/` are gitignored.
+`build-data.mjs` now also passes `k6_script` and `mix` through to the index and per-run JSON so they appear in the Single Run badges.
+
+`public/data/`, `node_modules/`, and `dist/` are all gitignored.
