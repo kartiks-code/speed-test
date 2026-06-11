@@ -1,0 +1,33 @@
+# Stage 1: dependency cache — only re-runs when pom.xml changes
+FROM maven:3.9-eclipse-temurin-21-alpine AS deps
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+# Stage 2: build
+FROM deps AS build
+COPY src ./src
+RUN mvn package -DskipTests -q
+
+# Stage 3: minimal runtime image with Java 21 virtual-thread-capable JRE
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+RUN addgroup -S helidon && adduser -S helidon -G helidon
+
+WORKDIR /app
+
+COPY --from=build /app/target/petstore-helidon.jar app.jar
+
+USER helidon:helidon
+
+EXPOSE 8080
+
+# ZGC + generational mode suits Helidon 4 virtual-thread workloads;
+# container-support caps heap at 75% of cgroup memory limit.
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-XX:+UseZGC", \
+  "-XX:+ZGenerational", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-jar", "app.jar"]

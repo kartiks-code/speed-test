@@ -1,0 +1,40 @@
+# Stage 1: dependency cache — only re-runs when pom.xml changes
+FROM maven:3.9-eclipse-temurin-17-alpine AS deps
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+# Stage 2: build
+FROM deps AS build
+COPY src ./src
+RUN mvn package -DskipTests -q
+
+# Stage 3: extract Spring Boot layers for optimal layer caching
+FROM eclipse-temurin:17-jre-alpine AS layers
+WORKDIR /app
+COPY --from=build /app/target/petstore-server-1.0.0.jar app.jar
+RUN java -Djarmode=layertools -jar app.jar extract
+
+# Stage 4: minimal runtime image
+FROM eclipse-temurin:17-jre-alpine AS runtime
+
+RUN addgroup -S spring && adduser -S spring -G spring
+
+WORKDIR /app
+
+COPY --from=layers /app/dependencies ./
+COPY --from=layers /app/spring-boot-loader ./
+COPY --from=layers /app/snapshot-dependencies ./
+COPY --from=layers /app/application ./
+
+USER spring:spring
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-XX:+UseG1GC", \
+  "-XX:+OptimizeStringConcat", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "org.springframework.boot.loader.launch.JarLauncher"]
