@@ -458,16 +458,31 @@ where
                      Ok(body) => {
                                 let mut unused_elements: Vec<String> = vec![];
                                 let param_pet: Option<models::Pet> = if !body.is_empty() {
-                                    let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
-                                    match serde_ignored::deserialize(deserializer, |path| {
-                                            warn!("Ignoring unknown field in body: {path}");
-                                            unused_elements.push(path.to_string());
-                                    }) {
-                                        Ok(param_pet) => param_pet,
-                                        Err(e) => return Ok(Response::builder()
-                                                        .status(StatusCode::BAD_REQUEST)
-                                                        .body(BoxBody::new(format!("Couldn't parse body parameter Pet - doesn't match schema: {e}")))
-                                                        .expect("Unable to create Bad Request response for invalid body parameter Pet due to schema")),
+                                    let ct = headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default();
+                                    if ct.contains("application/json") {
+                                        let deserializer = &mut serde_json::Deserializer::from_slice(&body);
+                                        match serde_ignored::deserialize(deserializer, |path| {
+                                                warn!("Ignoring unknown field in body: {path}");
+                                                unused_elements.push(path.to_string());
+                                        }) {
+                                            Ok(param_pet) => param_pet,
+                                            Err(e) => return Ok(Response::builder()
+                                                            .status(StatusCode::BAD_REQUEST)
+                                                            .body(BoxBody::new(format!("Couldn't parse body parameter Pet - doesn't match schema: {e}")))
+                                                            .expect("Unable to create Bad Request response for invalid body parameter Pet due to schema")),
+                                        }
+                                    } else {
+                                        let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
+                                        match serde_ignored::deserialize(deserializer, |path| {
+                                                warn!("Ignoring unknown field in body: {path}");
+                                                unused_elements.push(path.to_string());
+                                        }) {
+                                            Ok(param_pet) => param_pet,
+                                            Err(e) => return Ok(Response::builder()
+                                                            .status(StatusCode::BAD_REQUEST)
+                                                            .body(BoxBody::new(format!("Couldn't parse body parameter Pet - doesn't match schema: {e}")))
+                                                            .expect("Unable to create Bad Request response for invalid body parameter Pet due to schema")),
+                                        }
                                     }
 
                                 } else {
@@ -521,7 +536,7 @@ where
                                                 AddPetResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -648,7 +663,7 @@ where
                                                 FindPetsByStatusResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -758,7 +773,7 @@ where
                                                 FindPetsByTagsResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -833,16 +848,31 @@ where
                      Ok(body) => {
                                 let mut unused_elements: Vec<String> = vec![];
                                 let param_pet: Option<models::Pet> = if !body.is_empty() {
-                                    let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
-                                    match serde_ignored::deserialize(deserializer, |path| {
-                                            warn!("Ignoring unknown field in body: {path}");
-                                            unused_elements.push(path.to_string());
-                                    }) {
-                                        Ok(param_pet) => param_pet,
-                                        Err(e) => return Ok(Response::builder()
-                                                        .status(StatusCode::BAD_REQUEST)
-                                                        .body(BoxBody::new(format!("Couldn't parse body parameter Pet - doesn't match schema: {e}")))
-                                                        .expect("Unable to create Bad Request response for invalid body parameter Pet due to schema")),
+                                    let ct = headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default();
+                                    if ct.contains("application/json") {
+                                        let deserializer = &mut serde_json::Deserializer::from_slice(&body);
+                                        match serde_ignored::deserialize(deserializer, |path| {
+                                                warn!("Ignoring unknown field in body: {path}");
+                                                unused_elements.push(path.to_string());
+                                        }) {
+                                            Ok(param_pet) => param_pet,
+                                            Err(e) => return Ok(Response::builder()
+                                                            .status(StatusCode::BAD_REQUEST)
+                                                            .body(BoxBody::new(format!("Couldn't parse body parameter Pet - doesn't match schema: {e}")))
+                                                            .expect("Unable to create Bad Request response for invalid body parameter Pet due to schema")),
+                                        }
+                                    } else {
+                                        let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
+                                        match serde_ignored::deserialize(deserializer, |path| {
+                                                warn!("Ignoring unknown field in body: {path}");
+                                                unused_elements.push(path.to_string());
+                                        }) {
+                                            Ok(param_pet) => param_pet,
+                                            Err(e) => return Ok(Response::builder()
+                                                            .status(StatusCode::BAD_REQUEST)
+                                                            .body(BoxBody::new(format!("Couldn't parse body parameter Pet - doesn't match schema: {e}")))
+                                                            .expect("Unable to create Bad Request response for invalid body parameter Pet due to schema")),
+                                        }
                                     }
 
                                 } else {
@@ -901,7 +931,7 @@ where
                                                 UpdatePetResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1043,7 +1073,7 @@ where
                                                 DeletePetResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1170,7 +1200,7 @@ where
                                                 GetPetByIdResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1324,7 +1354,7 @@ where
                                                 UpdatePetWithFormResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1476,7 +1506,7 @@ where
                                                 UploadFileResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1555,7 +1585,7 @@ where
                                                 GetInventoryResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1600,11 +1630,20 @@ where
                      Ok(body) => {
                                 let mut unused_elements: Vec<String> = vec![];
                                 let param_order: Option<models::Order> = if !body.is_empty() {
-                                    let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
-                                    serde_ignored::deserialize(deserializer, |path| {
-                                        warn!("Ignoring unknown field in body: {path}");
-                                        unused_elements.push(path.to_string());
-                                    }).unwrap_or_default()
+                                    let ct = headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default();
+                                    if ct.contains("application/json") {
+                                        let deserializer = &mut serde_json::Deserializer::from_slice(&body);
+                                        serde_ignored::deserialize(deserializer, |path| {
+                                            warn!("Ignoring unknown field in body: {path}");
+                                            unused_elements.push(path.to_string());
+                                        }).unwrap_or_default()
+                                    } else {
+                                        let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
+                                        serde_ignored::deserialize(deserializer, |path| {
+                                            warn!("Ignoring unknown field in body: {path}");
+                                            unused_elements.push(path.to_string());
+                                        }).unwrap_or_default()
+                                    }
 
                                 } else {
                                     None
@@ -1650,7 +1689,7 @@ where
                                                 PlaceOrderResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1746,7 +1785,7 @@ where
                                                 DeleteOrderResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1843,7 +1882,7 @@ where
                                                 GetOrderByIdResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -1888,11 +1927,20 @@ where
                      Ok(body) => {
                                 let mut unused_elements: Vec<String> = vec![];
                                 let param_user: Option<models::User> = if !body.is_empty() {
-                                    let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
-                                    serde_ignored::deserialize(deserializer, |path| {
-                                        warn!("Ignoring unknown field in body: {path}");
-                                        unused_elements.push(path.to_string());
-                                    }).unwrap_or_default()
+                                    let ct = headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default();
+                                    if ct.contains("application/json") {
+                                        let deserializer = &mut serde_json::Deserializer::from_slice(&body);
+                                        serde_ignored::deserialize(deserializer, |path| {
+                                            warn!("Ignoring unknown field in body: {path}");
+                                            unused_elements.push(path.to_string());
+                                        }).unwrap_or_default()
+                                    } else {
+                                        let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
+                                        serde_ignored::deserialize(deserializer, |path| {
+                                            warn!("Ignoring unknown field in body: {path}");
+                                            unused_elements.push(path.to_string());
+                                        }).unwrap_or_default()
+                                    }
 
                                 } else {
                                     None
@@ -1928,7 +1976,7 @@ where
                                                 CreateUserResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -2025,7 +2073,7 @@ where
                                                 CreateUsersWithListInputResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -2175,7 +2223,7 @@ where
                                                 LoginUserResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -2230,7 +2278,7 @@ where
                                                 },
                                                 LogoutUserResponse::SuccessfulOperation_2
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
 
                                                 },
                                             },
@@ -2314,7 +2362,7 @@ where
                                                 DeleteUserResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -2411,7 +2459,7 @@ where
                                                 GetUserByNameResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));
@@ -2479,11 +2527,20 @@ where
                      Ok(body) => {
                                 let mut unused_elements: Vec<String> = vec![];
                                 let param_user: Option<models::User> = if !body.is_empty() {
-                                    let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
-                                    serde_ignored::deserialize(deserializer, |path| {
-                                        warn!("Ignoring unknown field in body: {path}");
-                                        unused_elements.push(path.to_string());
-                                    }).unwrap_or_default()
+                                    let ct = headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default();
+                                    if ct.contains("application/json") {
+                                        let deserializer = &mut serde_json::Deserializer::from_slice(&body);
+                                        serde_ignored::deserialize(deserializer, |path| {
+                                            warn!("Ignoring unknown field in body: {path}");
+                                            unused_elements.push(path.to_string());
+                                        }).unwrap_or_default()
+                                    } else {
+                                        let deserializer = &mut serde_xml_rs::de::Deserializer::new_from_reader(&*body);
+                                        serde_ignored::deserialize(deserializer, |path| {
+                                            warn!("Ignoring unknown field in body: {path}");
+                                            unused_elements.push(path.to_string());
+                                        }).unwrap_or_default()
+                                    }
 
                                 } else {
                                     None
@@ -2513,7 +2570,7 @@ where
                                                 UpdateUserResponse::UnexpectedError
                                                     (body)
                                                 => {
-                                                    *response.status_mut() = StatusCode::from_u16(0).expect("Unable to turn 0 into a StatusCode");
+                                                    *response.status_mut() = StatusCode::from_u16(500).expect("Unable to turn 500 into a StatusCode");
                                                     response.headers_mut().insert(
                                                         CONTENT_TYPE,
                                                         HeaderValue::from_static("application/json"));

@@ -705,6 +705,11 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
             Some(u) => u,
         };
 
+        let id = match user.id {
+            Some(id) => id,
+            None => next_id(&self.pool, r#""user""#).await?,
+        };
+
         sqlx::query(
             r#"
             INSERT INTO "user" (id, username, first_name, last_name, email, password, phone, user_status)
@@ -719,7 +724,7 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
                     user_status = EXCLUDED.user_status
             "#,
         )
-        .bind(user.id)
+        .bind(id)
         .bind(&user.username)
         .bind(&user.first_name)
         .bind(&user.last_name)
@@ -731,7 +736,7 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
         .await
         .map_err(|e| ApiError(format!("DB error creating user: {e}")))?;
 
-        Ok(CreateUserResponse::SuccessfulOperation(user))
+        Ok(CreateUserResponse::SuccessfulOperation(models::User { id: Some(id), ..user }))
     }
 
     /// Creates list of users with given input array.

@@ -46,14 +46,31 @@ The server starts on `http://127.0.0.1:8080`. All routes are under `/api/v3`.
 
 | Path | Purpose |
 |---|---|
-| `src/` | **Generated — do not edit.** Models, HTTP router, API trait definitions. |
+| `src/` | **Generated — do not edit** (except known patches below). Models, HTTP router, API trait definitions. |
 | `src/lib.rs` | `Api<C>` trait + all `*Response` enums. |
 | `src/models.rs` | Generated Petstore DTOs (`Pet`, `Order`, `User`, etc.). |
-| `src/server/mod.rs` | Generated HTTP dispatch layer (hyper + regex routing). |
+| `src/server/mod.rs` | Generated HTTP dispatch layer (hyper + regex routing). **Hand-patched** — see notes below. |
 | `examples/server/main.rs` | Binary entry point; builds the pool and starts the server. |
 | `examples/server/server.rs` | **Implemented `Api` trait** — all 19 CRUD operations with sqlx. |
 | `examples/server/db.rs` | Pool factory (`create_pool()`) and DSN resolution from env. |
 | `examples/server/server_auth.rs` | JWT bearer auth helpers (generated). |
+
+### Patches to `src/server/mod.rs`
+
+The OpenAPI Generator v7.23.0 `rust-server` target has two known bugs that make it non-functional
+with JSON clients. `src/server/mod.rs` has been patched to fix both; re-apply these patches
+if the file is ever regenerated:
+
+1. **Content-Type dispatch** — The generator emits `serde_xml_rs` deserialization for all request
+   bodies on endpoints that accept both `application/json` and `application/xml`, ignoring the
+   `Content-Type` request header. Five handlers were patched to check the header and dispatch to
+   `serde_json` when `Content-Type: application/json` is present:
+   `handle_add_pet`, `handle_update_pet`, `handle_place_order`, `handle_create_user`,
+   `handle_update_user`.
+
+2. **Status-0 panic** — The generator maps OpenAPI `default` response codes to HTTP status 0
+   (`StatusCode::from_u16(0).expect(...)`), which panics and drops the connection when triggered.
+   All 19 occurrences have been replaced with status 500.
 
 ## Implementation Conventions
 
