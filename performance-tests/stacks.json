@@ -1,0 +1,226 @@
+[
+  {
+    "id": "go",
+    "label": "Go (Gin)",
+    "build_context": "go/go-gin-server",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "go-gin-server",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "go-gin-server",
+      "POSTGRES_SSLMODE": "disable"
+    }
+  },
+  {
+    "id": "springboot",
+    "label": "Java (Spring Boot)",
+    "build_context": "java/springboot",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "java-springboot",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "readiness_timeout": 120,
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "java-springboot"
+    }
+  },
+  {
+    "id": "helidon",
+    "label": "Java (Helidon)",
+    "build_context": "java/helidon",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "java-helidon",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "readiness_timeout": 120,
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "java-helidon"
+    }
+  },
+  {
+    "id": "quarkus",
+    "label": "Java (Quarkus)",
+    "build_context": "java/quarkus",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "java-quarkus",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "readiness_timeout": 120,
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "java-quarkus"
+    }
+  },
+  {
+    "id": "nodejs",
+    "label": "Node.js (Express)",
+    "build_context": "nodejs",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "nodejs-express",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "nodejs-express"
+    }
+  },
+  {
+    "id": "python",
+    "label": "Python (FastAPI)",
+    "build_context": "python",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "python-fastapi",
+    "base_path": "",
+    "readiness_path": "/openapi.json",
+    "auth_header": "Bearer benchmark-token",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "python-fastapi"
+    }
+  },
+  {
+    "id": "rust",
+    "label": "Rust (hyper)",
+    "build_context": "rust",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "rust-server",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "BIND_ADDR": "0.0.0.0:8080",
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "rust-server"
+    }
+  },
+  {
+    "id": "csharp",
+    "label": "C# (ASP.NET Core)",
+    "build_context": "csharp/aspnetcore",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "csharp-aspnetcore",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "USE_IN_MEMORY_DB": "false",
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "csharp-aspnetcore"
+    }
+  },
+  {
+    "id": "laravel",
+    "label": "PHP (Laravel)",
+    "build_context": "php/laravel",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "php-laravel",
+    "base_path": "/api/v3",
+    "readiness_path": "/up",
+    "env": {
+      "APP_ENV": "production",
+      "APP_KEY": "base64:PLACEHOLDER_REPLACE_WITH_php_artisan_key_generate",
+      "APP_DEBUG": "false",
+      "DB_CONNECTION": "pgsql",
+      "DB_HOST": "speed-test-postgres",
+      "DB_PORT": "5432",
+      "DB_DATABASE": "php-laravel",
+      "DB_USERNAME": "myuser",
+      "DB_PASSWORD": "mypassword"
+    },
+    "notes": "APP_KEY must be generated: run 'php artisan key:generate --show' to get a real value and set LARAVEL_APP_KEY env var before benchmarking"
+  },
+  {
+    "id": "rails",
+    "label": "Ruby (Rails)",
+    "build_context": "ruby/rails",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "ruby-rails",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "entrypoint_override": "bin/rails",
+    "cmd_override": ["server", "-b", "0.0.0.0", "-p", "8080"],
+    "env": {
+      "RAILS_ENV": "development",
+      "RAILS_ALLOWED_HOSTS": "localhost,.local,speed-test-app-rails-naive,speed-test-app-rails-optimized,.docker.internal,.*",
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "ruby-rails"
+    },
+    "notes": "Uses RAILS_ENV=development to avoid ActionCable eager-load error in the generated production config. entrypoint_override bypasses docker-entrypoint.sh which calls db:migrate (fails without ActiveRecord). Dockerfile.optimized already sets CMD directly and uses production — it may still fail on ActionCable; handled via same entrypoint_override."
+  },
+  {
+    "id": "ktor",
+    "label": "Kotlin (Ktor)",
+    "build_context": "kotlin/ktor",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "kotlin-ktor",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "readiness_timeout": 120,
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "kotlin-ktor"
+    }
+  },
+  {
+    "id": "phoenix",
+    "label": "Elixir (Phoenix)",
+    "build_context": "elixir/phoenix",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "elixir-phoenix",
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "readiness_timeout": 120,
+    "env": {
+      "PHX_SERVER": "true",
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "elixir-phoenix"
+    }
+  }
+]

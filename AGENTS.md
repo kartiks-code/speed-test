@@ -21,7 +21,7 @@ This repository implements the **same OpenAPI Petstore API in multiple languages
 | `ruby/rails/` | Ruby + Rails server | `ruby/rails/AGENTS.md` |
 | `kotlin/ktor/` | Kotlin + Ktor server | `kotlin/ktor/AGENTS.md` |
 | `elixir/phoenix/` | Elixir + Phoenix server (hand-written) | `elixir/phoenix/AGENTS.md` |
-| `performance-tests/` | Placeholder for cross-implementation benchmarks | — |
+| `performance-tests/` | Language-agnostic Docker benchmark harness; runs all 13 stacks, collects RPS/latency/CPU/RAM/Postgres stats | `performance-tests/AGENTS.md` |
 
 ## The Core Workflow
 

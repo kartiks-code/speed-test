@@ -214,7 +214,10 @@ public class PetRepository {
             }
             String sql =
                 "INSERT INTO pet_photo (\"id\", pet_id, content_type, metadata, content) " +
-                "VALUES ((SELECT COALESCE(MAX(\"id\"), 0) + 1 FROM pet_photo), ?, ?, ?, ?)";
+                "VALUES ((SELECT COALESCE(MAX(\"id\"), 0) + 1 FROM pet_photo), ?, ?, ?, ?)" +
+                " ON CONFLICT (id) DO UPDATE SET pet_id=EXCLUDED.pet_id," +
+                " content_type=EXCLUDED.content_type, metadata=EXCLUDED.metadata," +
+                " content=EXCLUDED.content";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setLong(1, petId);
                 ps.setString(2, contentType);

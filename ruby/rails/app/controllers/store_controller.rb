@@ -9,7 +9,7 @@ class StoreController < ApplicationController
   def place_order
     order = parsed_body
     result = repo.place_order(order)
-    render json: result, status: :created
+    render json: result
   rescue => e
     render json: { message: e.message }, status: :bad_request
   end

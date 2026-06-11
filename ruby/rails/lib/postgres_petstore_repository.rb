@@ -231,7 +231,7 @@ class PostgresPetstoreRepository
   private
 
   def conn
-    @conn ||= PG.connect(@options)
+    Thread.current[:petstore_pg_conn] ||= PG.connect(@options)
   end
 
   def exec_params(sql, params)

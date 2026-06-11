@@ -31,6 +31,6 @@ fun Route.StoreApi(repo: PetstoreRepository) {
 
     delete<Paths.deleteOrder> { params ->
         repo.deleteOrder(params.orderId)
-        call.respond(HttpStatusCode.NoContent)
+        call.respond(HttpStatusCode.OK)
     }
 }

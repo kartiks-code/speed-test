@@ -17,6 +17,7 @@ import java.util.Map;
 import org.openapitools.server.model.Order;
 
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Response;
 
 import java.io.InputStream;
 import java.util.Map;
@@ -31,7 +32,7 @@ public interface StoreApi {
     @DELETE
     @Path("/order/{orderId}")
     @Produces({ "application/json" })
-    void deleteOrder(@PathParam("orderId") Long orderId);
+    Response deleteOrder(@PathParam("orderId") Long orderId);
 
     @GET
     @Path("/inventory")

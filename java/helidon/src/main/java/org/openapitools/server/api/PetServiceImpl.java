@@ -19,6 +19,7 @@ import org.openapitools.server.db.PetRepository;
 import org.openapitools.server.model.ModelApiResponse;
 import org.openapitools.server.model.Pet;
 
+import jakarta.ws.rs.core.Response;
 import java.io.File;
 import java.util.List;
 
@@ -40,8 +41,9 @@ public class PetServiceImpl implements PetService {
     @DELETE
     @Path("/{petId}")
     @Produces({ "application/json" })
-    public void deletePet(@PathParam("petId") Long petId, @HeaderParam("api_key") String apiKey) {
+    public Response deletePet(@PathParam("petId") Long petId, @HeaderParam("api_key") String apiKey) {
         repo.delete(petId);
+        return Response.ok().build();
     }
 
     @GET

@@ -4,7 +4,7 @@ class ApplicationController < ActionController::API
   end
 
   def parsed_body
-    raw = request.body.read
+    raw = request.raw_post
     raw.empty? ? {} : JSON.parse(raw)
   rescue JSON::ParserError
     {}

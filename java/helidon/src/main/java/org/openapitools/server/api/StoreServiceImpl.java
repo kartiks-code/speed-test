@@ -14,6 +14,7 @@ import org.openapitools.server.db.OrderRepository;
 import org.openapitools.server.db.PetRepository;
 import org.openapitools.server.model.Order;
 
+import jakarta.ws.rs.core.Response;
 import java.util.Map;
 
 @Path("/store")
@@ -30,8 +31,9 @@ public class StoreServiceImpl implements StoreService {
     @DELETE
     @Path("/order/{orderId}")
     @Produces({ "application/json" })
-    public void deleteOrder(@PathParam("orderId") Long orderId) {
+    public Response deleteOrder(@PathParam("orderId") Long orderId) {
         orderRepo.delete(orderId);
+        return Response.ok().build();
     }
 
     @GET

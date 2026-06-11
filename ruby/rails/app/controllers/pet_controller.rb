@@ -2,7 +2,7 @@ class PetController < ApplicationController
   def create
     pet = parsed_body
     result = repo.add_pet(pet)
-    render json: result, status: :created
+    render json: result
   rescue => e
     render json: { message: e.message }, status: :bad_request
   end

@@ -61,7 +61,7 @@ fun Route.PetApi(repo: PetstoreRepository) {
 
     delete<Paths.deletePet> { params ->
         repo.deletePet(params.petId)
-        call.respond(HttpStatusCode.NoContent)
+        call.respond(HttpStatusCode.OK)
     }
 
     post<Paths.uploadFile> { params ->

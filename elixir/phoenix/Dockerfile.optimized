@@ -7,7 +7,8 @@ WORKDIR /app
 
 RUN mix local.hex --force && mix local.rebar --force
 
-COPY mix.exs mix.lock ./
+# mix.lock* glob: no lockfile is checked in, so COPY must tolerate its absence
+COPY mix.exs mix.lock* ./
 RUN mix deps.get --only prod
 
 COPY config ./config

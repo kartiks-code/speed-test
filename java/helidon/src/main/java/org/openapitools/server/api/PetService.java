@@ -20,6 +20,7 @@ import java.util.Optional;
 import org.openapitools.server.model.Pet;
 
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Response;
 
 import java.io.InputStream;
 import java.util.Map;
@@ -39,7 +40,7 @@ public interface PetService {
     @DELETE
     @Path("/{petId}")
     @Produces({ "application/json" })
-    void deletePet(@PathParam("petId") Long petId, @HeaderParam("api_key")  String apiKey);
+    Response deletePet(@PathParam("petId") Long petId, @HeaderParam("api_key")  String apiKey);
 
     @GET
     @Path("/findByStatus")

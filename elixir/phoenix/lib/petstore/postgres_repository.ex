@@ -124,18 +124,9 @@ defmodule Petstore.PostgresRepository do
 
   @impl true
   def delete_pet(id) do
-    case get_pet_by_id(id) do
-      {:error, :not_found} ->
-        {:error, :not_found}
-
-      {:ok, _} ->
-        case Postgrex.query(db(), "DELETE FROM pet WHERE id = $1", [id]) do
-          {:ok, _} -> :ok
-          {:error, reason} -> {:error, reason}
-        end
-
-      err ->
-        err
+    case Postgrex.query(db(), "DELETE FROM pet WHERE id = $1", [id]) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -147,9 +138,9 @@ defmodule Petstore.PostgresRepository do
 
       {:ok, _} ->
         sql = """
-        INSERT INTO pet_photo (pet_id, content)
-        VALUES ($1, $2)
-        ON CONFLICT (pet_id) DO UPDATE SET content = EXCLUDED.content
+        INSERT INTO pet_photo (id, pet_id, content)
+        VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo), $1, $2)
+        ON CONFLICT (id) DO UPDATE SET pet_id=EXCLUDED.pet_id, content=EXCLUDED.content
         """
 
         case Postgrex.query(db(), sql, [pet_id, data]) do
@@ -188,7 +179,7 @@ defmodule Petstore.PostgresRepository do
       if id && id != 0 do
         id
       else
-        case Postgrex.query(db(), ~s(SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM "order"), []) do
+        case Postgrex.query(db(), ~s[SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM "order"], []) do
           {:ok, %{rows: [[next_id]]}} -> next_id
           _ -> 1
         end
@@ -226,7 +217,7 @@ defmodule Petstore.PostgresRepository do
 
   @impl true
   def get_order_by_id(id) do
-    sql = ~s(SELECT id, pet_id, quantity, ship_date, status::text, complete FROM "order" WHERE id = $1)
+    sql = ~s[SELECT id, pet_id, quantity, ship_date, status::text, complete FROM "order" WHERE id = $1]
 
     case Postgrex.query(db(), sql, [id]) do
       {:ok, %{rows: [], columns: _}} -> {:error, :not_found}
@@ -237,18 +228,9 @@ defmodule Petstore.PostgresRepository do
 
   @impl true
   def delete_order(id) do
-    case get_order_by_id(id) do
-      {:error, :not_found} ->
-        {:error, :not_found}
-
-      {:ok, _} ->
-        case Postgrex.query(db(), ~s(DELETE FROM "order" WHERE id = $1), [id]) do
-          {:ok, _} -> :ok
-          {:error, reason} -> {:error, reason}
-        end
-
-      err ->
-        err
+    case Postgrex.query(db(), ~s[DELETE FROM "order" WHERE id = $1], [id]) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -313,7 +295,7 @@ defmodule Petstore.PostgresRepository do
 
   @impl true
   def get_user_by_name(username) do
-    sql = ~s(SELECT id, username, first_name, last_name, email, password, phone, user_status FROM "user" WHERE username = $1)
+    sql = ~s[SELECT id, username, first_name, last_name, email, password, phone, user_status FROM "user" WHERE username = $1]
 
     case Postgrex.query(db(), sql, [username]) do
       {:ok, %{rows: [], columns: _}} -> {:error, :not_found}
@@ -338,7 +320,7 @@ defmodule Petstore.PostgresRepository do
         {:error, :not_found}
 
       {:ok, _} ->
-        case Postgrex.query(db(), ~s(DELETE FROM "user" WHERE username = $1), [username]) do
+        case Postgrex.query(db(), ~s[DELETE FROM "user" WHERE username = $1], [username]) do
           {:ok, _} -> :ok
           {:error, reason} -> {:error, reason}
         end

@@ -156,6 +156,7 @@ namespace Petstore
                     // c.SwaggerEndpoint("/openapi-original.json", "Swagger Petstore - OpenAPI 3.1 Original");
                 });
             app.UseRouting();
+            app.UseAuthorization();
             app.UseEndpoints(endpoints =>
                 {
                     endpoints.MapControllers();

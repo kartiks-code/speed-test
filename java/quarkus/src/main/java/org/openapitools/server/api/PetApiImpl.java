@@ -41,8 +41,9 @@ public class PetApiImpl implements PetApi {
     @DELETE
     @Path("/{petId}")
     @Produces({ "application/json" })
-    public void deletePet(@PathParam("petId") Long petId, @HeaderParam("api_key") String apiKey) {
+    public jakarta.ws.rs.core.Response deletePet(@PathParam("petId") Long petId, @HeaderParam("api_key") String apiKey) {
         repo.delete(petId);
+        return jakarta.ws.rs.core.Response.ok().build();
     }
 
     @GET

@@ -1,0 +1,5 @@
+# Ignore all run result directories — they can be large and are machine-specific
+*/
+!.gitignore
+comparison.csv
+comparison.md

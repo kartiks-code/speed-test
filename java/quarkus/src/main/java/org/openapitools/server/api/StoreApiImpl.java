@@ -29,8 +29,9 @@ public class StoreApiImpl implements StoreApi {
     @DELETE
     @Path("/order/{orderId}")
     @Produces({ "application/json" })
-    public void deleteOrder(@PathParam("orderId") Long orderId) {
+    public jakarta.ws.rs.core.Response deleteOrder(@PathParam("orderId") Long orderId) {
         orderRepo.delete(orderId);
+        return jakarta.ws.rs.core.Response.ok().build();
     }
 
     @GET

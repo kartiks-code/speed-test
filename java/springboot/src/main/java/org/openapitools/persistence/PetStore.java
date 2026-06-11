@@ -120,7 +120,10 @@ public class PetStore {
         byte[] data = content != null ? content : new byte[0];
         jdbc.update(
                 "INSERT INTO pet_photo (id, pet_id, content_type, metadata, content)"
-                        + " VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo), ?, ?, ?, ?)",
+                        + " VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo), ?, ?, ?, ?)"
+                        + " ON CONFLICT (id) DO UPDATE SET pet_id=EXCLUDED.pet_id,"
+                        + " content_type=EXCLUDED.content_type, metadata=EXCLUDED.metadata,"
+                        + " content=EXCLUDED.content",
                 petId, contentType, metadata, data);
         return data.length;
     }
