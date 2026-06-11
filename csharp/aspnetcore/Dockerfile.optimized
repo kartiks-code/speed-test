@@ -14,14 +14,16 @@ RUN dotnet publish "Petstore.csproj" \
 # Stage 2: minimal ASP.NET runtime image (Alpine — ~100 MB vs ~200 MB Debian slim)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS runtime
 
+# Alpine images ship without ICU; needed because invariant globalization is disabled
+RUN apk add --no-cache icu-libs icu-data-full
+
 RUN adduser -D -H -s /bin/false -u 1001 dotnet
 
 WORKDIR /app
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://+:8080 \
-    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
-    DOTNET_GCConserveMemory=9
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
 USER dotnet
 

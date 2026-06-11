@@ -23,9 +23,8 @@ USER helidon:helidon
 EXPOSE 8080
 
 # ZGC + generational mode suits Helidon 4 virtual-thread workloads;
-# container-support caps heap at 75% of cgroup memory limit.
+# MaxRAMPercentage caps heap at 75% of cgroup memory limit.
 ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
   "-XX:MaxRAMPercentage=75.0", \
   "-XX:+UseZGC", \
   "-XX:+ZGenerational", \

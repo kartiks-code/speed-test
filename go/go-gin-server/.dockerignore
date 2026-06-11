@@ -1,0 +1,20 @@
+# Version control and tooling metadata
+.git
+.gitignore
+.gremlins.yaml
+.openapi-generator/
+.openapi-generator-ignore
+
+# Docker files themselves
+Dockerfile*
+.dockerignore
+
+# Docs and environment files
+*.md
+.env*
+
+# Spec files not needed for the build
+api/
+
+# Locally built binary
+petstore

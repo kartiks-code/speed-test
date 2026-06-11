@@ -1,0 +1,21 @@
+# Version control and tooling metadata
+.git
+.gitignore
+.openapi-generator/
+.openapi-generator-ignore
+mutants.toml
+
+# Build output (huge; rebuilt inside the image)
+target/
+
+# Docker files themselves
+Dockerfile*
+.dockerignore
+
+# Docs and environment files
+*.md
+.env*
+docs/
+
+# Spec files not needed for the build
+api/

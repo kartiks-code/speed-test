@@ -13,11 +13,10 @@ COPY src ./src
 RUN ./gradlew build -x test -q && \
     cp build/*-runner.jar app-runner.jar
 
-# Stage 2: minimal JRE runtime
-# Java 25 JRE image; falls back to jdk if jre variant unavailable.
-FROM eclipse-temurin:25-jdk AS runtime
+# Stage 2: minimal JRE runtime on Alpine
+FROM eclipse-temurin:25-jre-alpine AS runtime
 
-RUN useradd --system --no-create-home --shell /bin/false quarkus
+RUN addgroup -S quarkus && adduser -S quarkus -G quarkus
 
 WORKDIR /app
 
@@ -29,9 +28,7 @@ EXPOSE 8080
 
 # Quarkus uber-jar is a fast-jar; G1GC with container-aware heap sizing.
 ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
   "-XX:MaxRAMPercentage=75.0", \
   "-XX:+UseG1GC", \
-  "-XX:+TieredCompilation", \
   "-Djava.security.egd=file:/dev/./urandom", \
   "-jar", "app.jar"]

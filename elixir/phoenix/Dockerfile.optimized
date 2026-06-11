@@ -19,8 +19,11 @@ RUN mix compile && mix release
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libssl3 libncurses6 locales && \
+        libssl3 libncurses6 && \
     rm -rf /var/lib/apt/lists/*
+
+# C.UTF-8 ships with Debian bookworm; Erlang/Elixir need a UTF-8 locale
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 RUN useradd --system --no-create-home phoenix
 

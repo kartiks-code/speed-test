@@ -1,5 +1,6 @@
 # Stage 1: cache Cargo dependencies using cargo-chef
-FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
+# Pinned tag (chef 0.1.77, Rust 1.95.0, bookworm — matches the bookworm-slim runtime stage)
+FROM lukemathwalker/cargo-chef:0.1.77-rust-1.95.0-bookworm AS chef
 WORKDIR /app
 
 FROM chef AS planner

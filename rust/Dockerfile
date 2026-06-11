@@ -1,11 +1,11 @@
-FROM rust:latest
+FROM rust:1
 
 WORKDIR /app
 
 COPY . .
 
-RUN cargo build --example petstore-server-server
+RUN cargo build --release --example petstore-server-server
 
 EXPOSE 8080
 
-CMD ["/app/target/debug/examples/petstore-server-server"]
+CMD ["/app/target/release/examples/petstore-server-server"]
