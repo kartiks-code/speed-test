@@ -10,7 +10,7 @@ This repository implements the **same OpenAPI Petstore API in multiple languages
 | `COMMANDS.md` | OpenAPI Generator command for each target | — |
 | `database/` | Shared PostgreSQL (Docker Compose), schema, create/apply scripts | `database/AGENTS.md` |
 | `go/go-gin-server/` | Go + Gin server | `go/go-gin-server/AGENTS.md` |
-| `java/springboot/` | Java 17 + Spring Boot 3.3 server | `java/springboot/AGENTS.md` |
+| `java/springboot/` | Java 25 + Spring Boot 3.5 server | `java/springboot/AGENTS.md` |
 | `java/helidon/` | Java 21 + Helidon MP 4 server | `java/helidon/AGENTS.md` |
 | `java/quarkus/` | Java 25 + Quarkus 3.36.x server (Gradle) | `java/quarkus/AGENTS.md` |
 | `nodejs/` | Node.js + Express server | `nodejs/AGENTS.md` |
@@ -21,7 +21,7 @@ This repository implements the **same OpenAPI Petstore API in multiple languages
 | `ruby/rails/` | Ruby + Rails server | `ruby/rails/AGENTS.md` |
 | `kotlin/ktor/` | Kotlin + Ktor server | `kotlin/ktor/AGENTS.md` |
 | `elixir/phoenix/` | Elixir + Phoenix server (hand-written) | `elixir/phoenix/AGENTS.md` |
-| `performance-tests/` | Language-agnostic Docker benchmark harness; runs all 13 stacks, collects RPS/latency/CPU/RAM/Postgres stats | `performance-tests/AGENTS.md` |
+| `performance-tests/` | Language-agnostic Docker benchmark harness; runs all 12 server stacks (`naive` + `optimized` variants), collects RPS/latency/CPU/RAM/Postgres stats; includes a results viewer + control server | `performance-tests/AGENTS.md` |
 
 ## The Core Workflow
 

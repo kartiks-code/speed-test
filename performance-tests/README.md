@@ -1,6 +1,6 @@
 # Petstore Performance Benchmark Harness
 
-A language-agnostic Docker harness that benchmarks all 13 Petstore server implementations (Go, Java Spring Boot, Java Helidon, Java Quarkus, Node.js, Python, Rust, C# ASP.NET Core, PHP Laravel, Ruby Rails, Kotlin Ktor, Elixir Phoenix) against the same PostgreSQL instance, collecting RPS, latency percentiles, CPU, RAM, and Postgres statistics.
+A language-agnostic Docker harness that benchmarks all 12 Petstore server implementations (Go, Java Spring Boot, Java Helidon, Java Quarkus, Node.js, Python, Rust, C# ASP.NET Core, PHP Laravel, Ruby Rails, Kotlin Ktor, Elixir Phoenix) against the same PostgreSQL instance, collecting RPS, latency percentiles, CPU, RAM, and Postgres statistics.
 
 Each stack ships a `Dockerfile` (**naive** — stock dependencies, no tuning) and a `Dockerfile.optimized` (**optimized** — multi-stage build, slim base image, JVM flags, connection pool tuning, etc.). Both variants are benchmarked so you can see the raw performance floor and what careful optimization buys.
 
@@ -11,7 +11,7 @@ Each stack ships a `Dockerfile` (**naive** — stock dependencies, no tuning) an
 | Stack ID | Language | Framework |
 |---|---|---|
 | `go` | Go | Gin |
-| `springboot` | Java 17 | Spring Boot 3.3 |
+| `springboot` | Java 25 | Spring Boot 3.5 |
 | `helidon` | Java 21 | Helidon MP 4 |
 | `quarkus` | Java 25 | Quarkus 3.36 (Gradle) |
 | `nodejs` | Node.js | Express |

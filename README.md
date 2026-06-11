@@ -22,9 +22,9 @@ spec/petstore-31.yaml  ──(openapi-generator-cli, see COMMANDS.md)──►  
 |---|---|---|---|---|
 | **Database** | PostgreSQL 17 (Docker Compose) | `database/` | — (hosts all DBs) | — |
 | **Go — Gin** | Go + Gin + `database/sql`/pgx | `go/go-gin-server/` | `go-gin-server` | `/api/v3` |
-| **Java — Spring Boot** | Java 17 + Spring Boot 3.3 + `JdbcTemplate` | `java/springboot/` | `java-springboot` | `/api/v3` |
+| **Java — Spring Boot** | Java 25 + Spring Boot 3.5 + `JdbcTemplate` | `java/springboot/` | `java-springboot` | `/api/v3` |
 | **Java — Helidon** | Java 21 + Helidon MP 4 (JAX-RS/CDI) + JDBC | `java/helidon/` | `java-helidon` | `/api/v3` |
-| **Java — Quarkus** | Java 21 + Quarkus + JDBC | `java/quarkus/` | `java-quarkus` | `/api/v3` |
+| **Java — Quarkus** | Java 25 + Quarkus 3.36 (Gradle) + JDBC | `java/quarkus/` | `java-quarkus` | `/api/v3` |
 | **Node.js — Express** | Node.js + Express + `pg` | `nodejs/` | `nodejs-express` | `/` (e.g. `/pet`) |
 | **Python — FastAPI** | Python + FastAPI + `asyncpg` | `python/` | `python-fastapi` | `/` (e.g. `/pet`) |
 | **Rust** | Rust + hyper + `sqlx` | `rust/` | `rust-server` | `/api/v3` |
@@ -41,7 +41,7 @@ Every server listens on **port 8080**. Each project has its own `README.md` (set
 - `spec/` — OpenAPI specifications (`petstore-31.yaml` is active; `petstore-32.yaml` and `petstore-api-modern.yaml` are alternates).
 - `COMMANDS.md` — the OpenAPI Generator command for every target.
 - `database/` — the shared PostgreSQL stack, the generated schema, and the create/apply scripts. See `database/DEVELOPER.md`.
-- `performance-tests/` — placeholder for cross-implementation load/benchmark tests.
+- `performance-tests/` — language-agnostic Docker benchmark harness: builds each stack (`naive` + `optimized` variants), runs a k6 CRUD load test against the shared Postgres, and collects RPS, latency, CPU, RAM, and Postgres stats. Includes a React/Vite results viewer and a local control server. See `performance-tests/README.md`.
 - `openapitools.json` — pins the `openapi-generator-cli` version.
 
 ## Quick Start
@@ -73,7 +73,7 @@ cd java/springboot && mvn spring-boot:run
 cd java/helidon && mvn package && java -jar target/petstore-helidon.jar
 
 # Java Quarkus
-cd java/quarkus && mvn quarkus:dev
+cd java/quarkus && ./gradlew build && java -jar build/*-runner.jar
 
 # Node.js
 cd nodejs && npm install && npm start
@@ -123,7 +123,7 @@ tests. No database is required.
 |---|---|---|
 | Java Spring Boot | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
 | Java Helidon | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
-| Java Quarkus | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| Java Quarkus | [PIT](https://pitest.org) | `./gradlew pitest` |
 | Node.js | [Stryker](https://stryker-mutator.io) | `npm run mutate` |
 | Python | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
 | Go | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
@@ -133,3 +133,15 @@ tests. No database is required.
 | Ruby Rails | [mutant](https://github.com/mbj/mutant) | `bundle exec mutant run` |
 | Kotlin Ktor | [PIT](https://pitest.org) | `./gradlew pitest` |
 | Elixir Phoenix | [muzak](https://github.com/devonestes/muzak) | `mix muzak` (best-effort) |
+
+## Performance Tests
+
+`performance-tests/` is a Docker-based benchmark harness that compares all 12 server stacks under identical load. For each stack it builds a `naive` variant (stock `Dockerfile`) and an `optimized` variant (`Dockerfile.optimized`), starts the container against the shared Postgres, runs a k6 CRUD load test, and records RPS, latency percentiles, CPU, RAM, and Postgres statistics.
+
+```bash
+cd performance-tests
+VUS=3 DURATION=15s ./run.sh go naive   # benchmark a single stack/variant
+python3 report.py                       # aggregate results/ into comparison.csv + comparison.md
+```
+
+Results land in `performance-tests/results/<stack>-<variant>-<timestamp>/` (gitignored). A React + Vite viewer (`performance-tests/viewer/`) and a local control server (`performance-tests/server/`) provide a UI for browsing results and triggering runs. See `performance-tests/README.md` for full usage.
