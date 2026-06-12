@@ -4,6 +4,14 @@ A language-agnostic Docker harness that benchmarks all 12 Petstore server implem
 
 Each stack ships a `Dockerfile` (**naive** — stock dependencies, no tuning) and a `Dockerfile.optimized` (**optimized** — multi-stage build, slim base image, JVM flags, connection pool tuning, etc.). Both variants are benchmarked so you can see the raw performance floor and what careful optimization buys.
 
+Three components work together:
+
+| Component | Path | Role |
+|---|---|---|
+| Harness | `run.sh`, `stacks.json`, `k6/`, `sampler.py`, `pg-stats.sh` | Build, run, load-test, collect metrics |
+| Viewer | `viewer/` | React SPA to browse and compare results |
+| Control server | `server/` | Local API + queue for triggering runs from the viewer UI |
+
 ---
 
 ## Stacks
@@ -33,7 +41,7 @@ Each stack ships a `Dockerfile` (**naive** — stock dependencies, no tuning) an
 | Python 3 (stdlib only) | system package | `sampler.py` (resource polling) and `report.py` (comparison table) |
 | `jq` | `apt install jq` / `brew install jq` | Postgres stats JSON parsing in `pg-stats.sh` |
 | `psql` client | `apt install postgresql-client` | Postgres snapshot/reset |
-| Node.js 18+ *(optional)* | [nodejs.org](https://nodejs.org) | Only needed to run the visual results viewer |
+| Node.js 18+ *(optional)* | [nodejs.org](https://nodejs.org) | Viewer SPA and control server (not needed for CLI-only `./run.sh`) |
 
 ---
 
@@ -120,6 +128,73 @@ NO_BUILD=1 VUS=20 DURATION=60s ./run.sh go naive
 | `NO_BUILD` | `0` | Set to `1` to skip `docker build` and use existing images |
 | `KEEP_RESULTS` | `0` | Set to `1` to preserve the results directory even on failure |
 | `READINESS_TIMEOUT` | `90` | Seconds to wait for a container to become ready (JVM stacks override this to `120` in `stacks.json`) |
+| `K6_SCRIPT_NAME` | `crud.js` | k6 script filename inside `k6/` (use `crud-mix.js` for weighted operation mix) |
+| `MIX_CREATE` | `25` | Relative weight for Create (only when `K6_SCRIPT_NAME=crud-mix.js`) |
+| `MIX_READ` | `25` | Relative weight for Read |
+| `MIX_UPDATE` | `25` | Relative weight for Update |
+| `MIX_DELETE` | `25` | Relative weight for Delete |
+| `DOCKERFILE_OVERRIDE` | — | Dockerfile path relative to `build_context`; bypasses naive/optimized mapping; variant label used as-is in results dir |
+| `SUITE_NAME` | — | Optional label grouping this run with others (stored in `run-meta.json`; searchable in Compare and Manage Runs) |
+| `CONTROL_PORT` | `5179` | Control server listen port (see Control Server below) |
+
+---
+
+## k6 Load Scripts
+
+Two scripts live in `k6/`:
+
+| Script | Used by | Behavior |
+|---|---|---|
+| `crud.js` | `./run.sh` (default) | Fixed full CRUD cycle on every iteration — original benchmark script |
+| `crud-mix.js` | Control server / viewer UI | Weighted random operation per iteration; seeds a shared pet pool in `setup()` |
+
+Run the mix script from the CLI:
+
+```bash
+K6_SCRIPT_NAME=crud-mix.js MIX_CREATE=10 MIX_READ=50 MIX_UPDATE=25 MIX_DELETE=15 \
+  VUS=20 DURATION=60s ./run.sh go naive
+```
+
+Weights are relative integers (not percentages); they are normalised at startup. The control server always uses `crud-mix.js` with mix weights from the Run Tests form.
+
+---
+
+## Benchmark Suites
+
+A **suite** is an optional label shared by multiple runs so you can compare or manage them as a batch. Suite names are stored in each run's `run-meta.json` as `"suite"`.
+
+**From the CLI** — tag individual runs:
+
+```bash
+SUITE_NAME=jvm-comparison-june VUS=20 DURATION=60s ./run.sh springboot,quarkus optimized
+```
+
+**From the viewer** — use **Run Tests** (`/run`) to queue a cartesian product of selected stacks × variants under one suite name (e.g. 3 stacks × 2 variants = 6 queued jobs). Jobs still execute sequentially; the suite name is forwarded as `SUITE_NAME` to each `run.sh` invocation.
+
+**After the fact** — **Manage Runs** (`/manage`) can assign a suite label to existing runs, or **Compare** (`/compare`) can load all runs in a suite by name.
+
+---
+
+## Host Port Assignments
+
+Each stack publishes a unique host port so containers can run side-by-side for debugging. Internally every app still listens on **8080**; `run.sh` still runs one benchmark at a time and tears down before the next.
+
+| Stack | Naive | Optimized |
+|---|---|---|
+| go | 8081 | 8082 |
+| springboot | 8083 | 8084 |
+| helidon | 8085 | 8086 |
+| quarkus | 8087 | 8088 |
+| nodejs | 8089 | 8090 |
+| python | 8091 | 8092 |
+| rust | 8093 | 8094 |
+| csharp | 8095 | 8096 |
+| laravel | 8097 | 8098 |
+| rails | 8099 | 8100 |
+| ktor | 8101 | 8102 |
+| phoenix | 8103 | 8104 |
+
+Port pairs are defined in `stacks.json` (`host_port` / `host_port_optimized`). New stacks start at 8105.
 
 ---
 
@@ -176,7 +251,7 @@ Each run creates a directory at `results/<stack>-<variant>-<timestamp>/`:
 
 | File | Contents |
 |---|---|
-| `run-meta.json` | Stack id, variant, VUs, duration, CPU/memory limits, timestamp |
+| `run-meta.json` | Stack id, label, variant, `dockerfile`, `db_name`, `host_port`, VUs, duration, CPU/memory limits, timestamp, `k6_script`, `mix` weights, optional `suite` |
 | `build.log` | Full `docker build` output |
 | `docker-stats.csv` | 1-second-interval CPU %, RAM (MiB), net I/O, block I/O for the app container and the Postgres container, for the full duration of the k6 run |
 | `pg-before.json` | Snapshot of `pg_stat_database`, `pg_stat_io`, and top-50 `pg_stat_statements` rows (by total exec time) taken **before** k6 starts |
@@ -211,7 +286,9 @@ python3 report.py --results-dir /path/to/results --output-csv out.csv --output-m
 
 ## Visual Results Viewer
 
-A React + Vite SPA lets you explore individual runs and compare up to 4 stacks side-by-side with charts.
+A React + Vite SPA for exploring results, comparing runs, and queuing new benchmarks from the browser.
+
+### View-only
 
 ```bash
 cd viewer
@@ -220,22 +297,69 @@ npm run dev
 # Open http://localhost:5173
 ```
 
-The data generator (`scripts/build-data.mjs`) runs automatically before `dev` and `build`. After adding new benchmark runs, restart `npm run dev` (or run `node scripts/build-data.mjs` manually) to refresh the data.
+### With run triggering (Run Tests + Queue pages)
+
+```bash
+# Option A — two terminals
+cd server && npm install && npm start          # http://127.0.0.1:5179
+cd viewer && npm run dev                         # http://localhost:5173
+
+# Option B — one command from viewer/
+npm run dev:all
+```
+
+Vite proxies `/api` to the control server on `127.0.0.1:5179`.
+
+The data generator (`scripts/build-data.mjs`) runs automatically before `dev` and `build`. It scans `results/` and emits `viewer/public/data/index.json` plus per-run JSON (including `k6_script`, `mix`, and `suite` from `run-meta.json`). After CLI benchmark runs, restart `npm run dev` or run `node scripts/build-data.mjs`. Runs triggered via the control server regenerate data automatically and push a `data_updated` SSE event so open pages reload without a manual refresh.
 
 ### Pages
 
 **Single Run** (`/`) — pick a stack and run; shows:
 - Stat cards: RPS, avg/p95/p99 latency, error rate, total requests, CPU peak, RAM peak
+- Meta badges: stack, variant, VUs, duration, CPUs, memory, timestamp — plus **Script** and **Mix** when the run used `crud-mix.js`
 - Latency breakdown bar chart (avg, p50, p90, p95, p99, max)
+- Resource summary table (CPU avg/peak, RAM avg/peak, net, block I/O)
 - CPU and RAM time-series over the run
 - Per-endpoint k6 check pass/fail counts
 - PostgreSQL counters delta
 
-**Compare** (`/compare`) — select up to 4 stack/run combinations; shows:
-- RPS, error rate, latency percentiles, CPU, RAM, and Postgres counters as grouped bar charts
-- CPU and RAM time-series as line overlays
+**Compare** (`/compare`) — pick up to 6 stack/run combinations manually (stack → duration → variant → timestamp), or search for a **suite** to load all runs from a benchmark batch. Shows RPS, error rate, latency percentiles, CPU, RAM, and Postgres counters as grouped bar charts, plus CPU/RAM time-series overlays. When a suite has more than 6 stack×variant combos, results paginate (6 per page). Use **Change groups** to assign combos to pages; layout persists in browser `localStorage`.
+
+**Manage Runs** (`/manage`) — filter runs by suite, stack, duration, variant, VUs, and time range (24h / 7d / 30d presets or custom UTC dates). Multi-select rows to **Name as suite**, **Delete selected**, or open a suite in Compare. The **Suites** panel can dissolve a suite (remove labels, keep runs) or delete all runs in a suite. Browse/filter works view-only; mutations require the control server.
+
+**Run Tests** (`/run`) — requires control server; form to queue a **benchmark suite**: suite name, multi-select stacks and variants (naive/optimized/custom Dockerfiles discovered live), duration, VUs, and CRUD-mix sliders. Schedules `stacks × variants` jobs sequentially via `crud-mix.js`. Redirects to Queue on submit.
+
+**Queue** (`/queue`) — requires control server; live job list with status badges (Pending / Running / Done / Failed / Canceled), suite name per job, streaming `run.sh` logs via SSE, cancel for pending jobs, and **View results →** deep-link on completion.
 
 See `viewer/README.md` for full details.
+
+---
+
+## Control Server
+
+A local Express server (`server/`) that powers **Run Tests**, **Queue**, and **Manage Runs** mutations. Jobs run strictly one at a time; stdout/stderr stream to the browser via SSE.
+
+```bash
+cd server
+npm install
+npm start
+# Listens on http://127.0.0.1:5179 (override with CONTROL_PORT)
+```
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/stacks` | All stacks with discovered Dockerfile variants |
+| `GET` | `/api/queue` | Current job queue |
+| `POST` | `/api/queue` | Enqueue one run or a named suite (stacks × variants batch) |
+| `DELETE` | `/api/queue/:id` | Cancel a pending job |
+| `POST` | `/api/runs/assign-suite` | Assign a suite label to existing runs |
+| `DELETE` | `/api/runs` | Delete completed run directories |
+| `DELETE` | `/api/suites/:name` | Dissolve suite labels or delete all runs in a suite (`?action=delete-runs`) |
+| `GET` | `/api/events` | SSE stream (`queue_update`, `log`, `data_updated`) |
+
+See `server/README.md` for request bodies and event types.
+
+Secret env vars (`LARAVEL_APP_KEY`, `RAILS_SECRET_KEY_BASE`, etc.) must be set in the shell that starts the control server — they are forwarded to spawned `run.sh` processes.
 
 ---
 
@@ -244,7 +368,7 @@ See `viewer/README.md` for full details.
 - **Warm the Docker image cache** — run each stack twice with `NO_BUILD=1` on the second run; the first run pays build costs that inflate wall-clock time.
 - **Use the same limits** — always set `APP_CPUS` and `APP_MEMORY` explicitly when comparing stacks, otherwise Docker inherits the host's full resources.
 - **Use `DURATION=120s` or longer** — JVM stacks need 20–30 s to JIT-compile hot paths; a 60 s run still sees warm-up overhead in the metrics.
-- **Run stacks sequentially, not in parallel** — `run.sh` runs one container at a time. The Postgres container is shared; concurrent app containers fight for the same DB.
+- **Run stacks sequentially via `run.sh`** — the orchestrator runs one container at a time and tears down before the next. Host ports allow manual side-by-side containers for debugging, but concurrent benchmarks against the shared Postgres will skew results.
 - **Check `k6.log` for threshold violations** — a non-zero error rate is usually a concurrency race on `MAX(id)+1` ID generation, not a harness bug. See the Known Quirks section in `AGENTS.md`.
 
 ---

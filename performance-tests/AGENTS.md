@@ -2,7 +2,7 @@
 
 Docker-based benchmark harness for the Petstore multi-language speed test. Builds each stack as a Docker image, starts it against the shared Postgres container, runs a k6 CRUD load test, and collects RPS, latency, CPU, RAM, and Postgres statistics. All 12 stacks are supported, each in a `naive` variant (stock Dockerfile) and an `optimized` variant (`Dockerfile.optimized`).
 
-See `README.md` for operator-facing usage (prerequisites, quick start, environment variables). See `viewer/README.md` for the React SPA that visualises run results.
+See `README.md` for operator-facing usage (prerequisites, quick start, environment variables, host ports, k6 scripts). See `viewer/README.md` for the React SPA; see `server/README.md` for the control-server API.
 
 ## File Roles
 
@@ -16,7 +16,10 @@ See `README.md` for operator-facing usage (prerequisites, quick start, environme
 | `k6/crud-mix.js` | Weighted operation mix script; driven by `MIX_CREATE/READ/UPDATE/DELETE` env vars; seeds a pet pool in `setup()` then picks one operation per VU iteration by normalized weight |
 | `report.py` | Reads all `results/*/` directories → writes `results/comparison.csv` and `results/comparison.md` |
 | `results/` | One directory per run, named `<stack>-<variant>-<timestamp>`; gitignored |
-| `server/` | Local Node control server (Express); exposes `/api/stacks`, `/api/queue`, `/api/events` (SSE); manages the sequential run queue; spawns `run.sh` |
+| `server/` | Local Node control server (Express); exposes queue, run-management, and SSE APIs; spawns `run.sh` |
+| `server/queue.mjs` | In-memory FIFO queue; `enqueue` / `enqueueBatch`; spawns `run.sh` with `K6_SCRIPT_NAME=crud-mix.js` and `SUITE_NAME` |
+| `server/runs.mjs` | Suite assignment, run deletion, suite dissolve/delete (mutates `run-meta.json` and result dirs on disk) |
+| `server/dataRefresh.mjs` | Runs `build-data.mjs` and broadcasts `data_updated` SSE after queue or run-management changes |
 | `viewer/` | React + Vite SPA for browsing results and triggering new runs; run `npm install && npm run dev` |
 | `viewer/scripts/build-data.mjs` | Node generator: scans `results/`, emits `viewer/public/data/index.json` + per-run JSON; runs automatically via `predev`/`prebuild` |
 
@@ -36,7 +39,16 @@ See `README.md` for operator-facing usage (prerequisites, quick start, environme
 12. Take `pg-after.json` snapshot and compute `pg-delta.json`.
 13. Save `container.log` from `docker logs`.
 14. `docker rm -f` the app container.
-15. Write `run-meta.json` with stack id, variant, limits, timestamp, `k6_script`, and `mix` object.
+15. Write `run-meta.json` with stack id, label, variant, `dockerfile`, `db_name`, `host_port`, limits, timestamp, `k6_script`, `mix` object, and optional `suite` (from `SUITE_NAME` env).
+
+### k6 script selection
+
+| Invocation | Default script | Notes |
+|---|---|---|
+| `./run.sh` (CLI) | `crud.js` | Set `K6_SCRIPT_NAME=crud-mix.js` and `MIX_*` weights to use the weighted mix |
+| Control server (`server/queue.mjs`) | `crud-mix.js` | Mix weights come from the POST `/api/queue` body or Run Tests form defaults (25/25/25/25) |
+
+`crud.js` runs a fixed full CRUD cycle every iteration. `crud-mix.js` seeds pets in `setup()`, then picks one weighted operation per iteration.
 
 ### Additional environment variables
 
@@ -48,6 +60,20 @@ See `README.md` for operator-facing usage (prerequisites, quick start, environme
 | `MIX_UPDATE` | `25` | Relative weight for Update operations |
 | `MIX_DELETE` | `25` | Relative weight for Delete operations |
 | `DOCKERFILE_OVERRIDE` | _(empty)_ | Explicit Dockerfile path relative to `build_context`; variant arg used as-is |
+| `SUITE_NAME` | _(empty)_ | Optional label grouping this run with others in the same benchmark suite |
+
+## Benchmark Suites
+
+Suite names tie multiple runs together for Compare and Manage Runs. They are written to `run-meta.json` as `"suite"` (null when unset).
+
+| Source | How |
+|---|---|
+| CLI | `SUITE_NAME=my-suite ./run.sh go,springboot naive` |
+| Control server single job | Optional `suiteName` in `POST /api/queue` body |
+| Control server batch | `POST /api/queue` with `suiteName`, `stackIds[]`, `variants[]` — enqueues cartesian product via `enqueueBatch()` |
+| Retroactive | `POST /api/runs/assign-suite` or Manage Runs UI |
+
+The Run Tests page (`viewer/src/routes/RunTests.jsx`) always uses batch enqueue. Manage Runs and Compare read `suite` from generated viewer data (`build-data.mjs` passes it through from `run-meta.json`).
 
 ## `stacks.json` Schema
 
@@ -106,29 +132,45 @@ When adding a new stack, pick the next two available ports starting from 8105 an
 
 ## Viewer (`viewer/`)
 
-A React + Vite SPA for exploring results visually and triggering new runs. Run with `npm install && npm run dev` from `viewer/`. The `predev`/`prebuild` scripts call `scripts/build-data.mjs`, which scans `../results/` and emits `viewer/public/data/index.json` plus per-run JSON files. These generated files are gitignored.
+A React + Vite SPA for exploring results visually and triggering new runs.
 
-Pages: **Single Run** (`/`), **Compare** (`/compare`), **Run Tests** (`/run`), **Queue** (`/queue`).
+**Start view-only:** `cd viewer && npm install && npm run dev`
 
-The **Run Tests** and **Queue** pages require the control server to be running (`server/`). Vite proxies all `/api` requests to `127.0.0.1:5179`.
+**Start with run triggering:** `npm run dev:all` from `viewer/` (starts control server + Vite), or run `npm run server` / `cd server && npm start` separately.
+
+The `predev`/`prebuild` scripts call `scripts/build-data.mjs`, which scans `../results/` and emits `viewer/public/data/index.json` plus per-run JSON files (including `k6_script` and `mix` from `run-meta.json`). These generated files are gitignored.
+
+Pages: **Single Run** (`/`), **Compare** (`/compare`), **Manage Runs** (`/manage`), **Run Tests** (`/run`), **Queue** (`/queue`).
+
+On **Compare**, suites with more than 6 stack×variant combos are paginated (6 charts per page). Custom page assignments persist in browser `localStorage` via **Change groups**.
+
+**Manage Runs** filters by suite/stack/duration/variant/VUs/time range, supports multi-select, retroactive suite naming, run deletion, and suite dissolve/delete (requires control server for mutations).
+
+The **Run Tests** and **Queue** pages require the control server. Vite proxies all `/api` requests to `127.0.0.1:5179`.
 
 When editing the viewer:
 - All result data is read from `public/data/` at runtime — never from the filesystem directly.
-- After adding new benchmark runs, the viewer data must be regenerated: `node scripts/build-data.mjs` or restart `npm run dev`.
-- The control server (`server/`) is a separate process — start it with `npm run server` from `viewer/` or `npm start` from `server/`.
+- After CLI benchmark runs, regenerate data: `node scripts/build-data.mjs` or restart `npm run dev`. Control-server jobs and run-management API calls trigger `build-data.mjs` automatically.
+- Compare suite pagination state lives in browser `localStorage` (`viewer/src/lib/suiteGroups.js`).
 - `viewer/node_modules/`, `viewer/dist/`, and `viewer/public/data/` are all gitignored.
+- `results/` is gitignored at the harness root (`performance-tests/.gitignore`).
 
 ## Control Server (`server/`)
 
-A local Express server that powers the run-triggering UI. See `server/README.md` for the full API reference.
+A local Express server that powers the run-triggering UI and run-management mutations. See `server/README.md` for the full API reference.
 
 **Start:** `cd server && npm install && npm start`
 
 Key behaviours:
 - Jobs are processed strictly one at a time (sequential queue).
-- On job completion, `build-data.mjs` is run automatically so results appear in the viewer without a restart.
+- `POST /api/queue` accepts either a single `{ stackId, variant, ... }` or a batch `{ suiteName, stackIds, variants, ... }`.
+- Each job spawns `run.sh <stackId> <variant>` with `K6_SCRIPT_NAME=crud-mix.js`, mix weights, optional `DOCKERFILE_OVERRIDE`, and optional `SUITE_NAME`.
+- stdout/stderr are broadcast as SSE `log` events; queue state changes emit `queue_update`.
+- Run management (`runs.mjs`): assign-suite, delete runs, dissolve/delete suites — each calls `refreshViewerAndBroadcast()`.
+- On job completion or run mutation, `build-data.mjs` runs automatically, then a `data_updated` SSE event is broadcast so Single Run and Compare pages reload without a manual refresh.
 - The server is local-only (`127.0.0.1`), no authentication.
 - `CONTROL_PORT` env var overrides the default port `5179`.
+- Secret env vars must be present in the server's environment (forwarded to child `run.sh` processes).
 
 ## Known Quirks (Already Fixed in Code)
 
@@ -151,3 +193,5 @@ These are in place; do not revert them.
 **Delete concurrency 404s.** Multiple VUs race on `MAX(id)+1` ID assignment and may attempt to delete the same row. A small percentage of delete calls returning 404 is expected at the default VU count; it is benchmark data, not a harness bug. Stacks that do a pre-existence check before deleting are more susceptible; idempotent deletes (delete directly and ignore rows-affected) eliminate the race.
 
 **stacks.json `build_context` paths.** Paths are relative to the repo root, not to `performance-tests/`. Use `"go/go-gin-server"`, not `"../go/go-gin-server"`.
+
+**Host ports vs sequential runs.** `stacks.json` assigns unique `host_port` / `host_port_optimized` per stack so all 24 variants can bind simultaneously for manual debugging. `run.sh` still runs one benchmark at a time and removes the container before the next — do not run concurrent `run.sh` processes against the shared Postgres for comparable results.

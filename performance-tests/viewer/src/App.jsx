@@ -4,9 +4,12 @@ import SingleRun from "./routes/SingleRun.jsx";
 import Compare from "./routes/Compare.jsx";
 import RunTests from "./routes/RunTests.jsx";
 import Queue from "./routes/Queue.jsx";
+import ManageRuns from "./routes/ManageRuns.jsx";
+import { DataRefreshProvider } from "./lib/DataRefreshContext.jsx";
 
 export default function App() {
   return (
+    <DataRefreshProvider>
     <div className="app">
       <header className="app-header">
         <div className="header-inner">
@@ -17,6 +20,9 @@ export default function App() {
             </NavLink>
             <NavLink to="/compare" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
               Compare
+            </NavLink>
+            <NavLink to="/manage" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+              Manage Runs
             </NavLink>
             <NavLink to="/run" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
               Run Tests
@@ -31,10 +37,12 @@ export default function App() {
         <Routes>
           <Route path="/" element={<SingleRun />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/manage" element={<ManageRuns />} />
           <Route path="/run" element={<RunTests />} />
           <Route path="/queue" element={<Queue />} />
         </Routes>
       </main>
     </div>
+    </DataRefreshProvider>
   );
 }

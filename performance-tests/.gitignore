@@ -8,6 +8,9 @@ __pycache__/
 .venv/
 venv/
 
+# Benchmark output (one directory per run + comparison reports)
+results/
+
 # Local environment overrides
 .env
 .env.local

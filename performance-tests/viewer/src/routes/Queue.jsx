@@ -55,7 +55,24 @@ function MixBar({ mix }) {
   );
 }
 
-function JobRow({ job, onCancel, isSelected, onSelect }) {
+const COMPLETED_STATUSES = new Set(["done", "failed", "canceled"]);
+
+function partitionJobs(jobs) {
+  const running = jobs.find((j) => j.status === "running");
+  const pending = jobs.filter((j) => j.status === "pending");
+  const activeQueue = running ? [running, ...pending] : pending;
+
+  const completed = jobs
+    .filter((j) => COMPLETED_STATUSES.has(j.status))
+    .sort(
+      (a, b) =>
+        new Date(b.finishedAt || 0) - new Date(a.finishedAt || 0)
+    );
+
+  return { activeQueue, completed };
+}
+
+function JobRow({ job, position, onCancel, isSelected, onSelect }) {
   const duration =
     job.startedAt && job.finishedAt
       ? `${((new Date(job.finishedAt) - new Date(job.startedAt)) / 1000).toFixed(0)}s`
@@ -69,20 +86,37 @@ function JobRow({ job, onCancel, isSelected, onSelect }) {
       onClick={() => onSelect(job.id)}
     >
       <div className="job-row-main">
+        {position != null && (
+          <span className="job-position" title="Queue position">{position}</span>
+        )}
         <StatusBadge status={job.status} />
+        {job.suiteName && (
+          <span className="job-suite" title="Suite">{job.suiteName}</span>
+        )}
         <span className="job-stack">{job.stackId}</span>
         <span className="job-variant">{job.variant}</span>
         <span className="job-meta">{job.vus} VU · {job.durationSec}s</span>
         <MixBar mix={job.mix} />
         {duration && <span className="job-duration">{duration}</span>}
         {job.runId && job.status === "done" && (
-          <Link
-            className="btn-link job-results-link"
-            to={`/?runId=${job.runId}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            View results →
-          </Link>
+          <>
+            <Link
+              className="btn-link job-results-link"
+              to={`/?runId=${job.runId}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              View →
+            </Link>
+            {job.suiteName && (
+              <Link
+                className="btn-link job-results-link"
+                to={`/compare?suite=${encodeURIComponent(job.suiteName)}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                Compare suite →
+              </Link>
+            )}
+          </>
         )}
         {job.status === "pending" && (
           <button
@@ -198,8 +232,9 @@ export default function Queue() {
   }, []);
 
   const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
-  const pending = jobs.filter((j) => j.status === "pending").length;
-  const running = jobs.find((j) => j.status === "running");
+  const { activeQueue, completed } = partitionJobs(jobs);
+  const pending = activeQueue.filter((j) => j.status === "pending").length;
+  const running = activeQueue.find((j) => j.status === "running");
 
   return (
     <div className="queue-page">
@@ -234,16 +269,43 @@ export default function Queue() {
         </div>
       ) : (
         <div className="queue-layout">
-          <div className="job-list">
-            {[...jobs].reverse().map((job) => (
-              <JobRow
-                key={job.id}
-                job={job}
-                onCancel={handleCancel}
-                isSelected={selectedId === job.id}
-                onSelect={handleSelect}
-              />
-            ))}
+          <div className="job-sections">
+            <section className="job-section">
+              <h3 className="job-section-title">Queue</h3>
+              {activeQueue.length === 0 ? (
+                <div className="job-section-empty">No active jobs — add a run or check completed below.</div>
+              ) : (
+                <div className="job-list">
+                  {activeQueue.map((job, i) => (
+                    <JobRow
+                      key={job.id}
+                      job={job}
+                      position={i + 1}
+                      onCancel={handleCancel}
+                      isSelected={selectedId === job.id}
+                      onSelect={handleSelect}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {completed.length > 0 && (
+              <section className="job-section">
+                <h3 className="job-section-title">Completed runs</h3>
+                <div className="job-list">
+                  {completed.map((job) => (
+                    <JobRow
+                      key={job.id}
+                      job={job}
+                      onCancel={handleCancel}
+                      isSelected={selectedId === job.id}
+                      onSelect={handleSelect}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
           <LogPanel job={selectedJob} />
         </div>

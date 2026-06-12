@@ -35,6 +35,7 @@
 #   DOCKERFILE_OVERRIDE  Path (relative to build_context) to use instead of the
 #                        variant-derived Dockerfile; variant arg is used as-is for
 #                        the results dir/label when this is set.
+#   SUITE_NAME        Optional label grouping this run with others in the same benchmark suite
 #
 # Prerequisites:
 #   - Docker with Unix socket at /var/run/docker.sock
@@ -390,6 +391,7 @@ run_one() {
         --argjson mix_read "$MIX_READ" \
         --argjson mix_update "$MIX_UPDATE" \
         --argjson mix_delete "$MIX_DELETE" \
+        --arg suite_name "${SUITE_NAME:-}" \
         '{run_id: $run_id, stack_id: $stack_id, label: $label, variant: $variant,
           dockerfile: $dockerfile, db_name: $db_name,
           host_port: $host_port,
@@ -397,7 +399,8 @@ run_one() {
           app_cpus: ($app_cpus|tonumber), app_memory: $app_memory,
           timestamp: $ts,
           k6_script: $k6_script,
-          mix: {create: $mix_create, read: $mix_read, update: $mix_update, delete: $mix_delete}}' \
+          mix: {create: $mix_create, read: $mix_read, update: $mix_update, delete: $mix_delete},
+          suite: (if $suite_name == "" then null else $suite_name end)}' \
         > "$results_dir/run-meta.json"
 
     log "Results saved to $results_dir"

@@ -15,7 +15,32 @@ WORKDIR /app
 COPY --from=build /app/target/petstore-server-1.0.0.jar app.jar
 RUN java -Djarmode=layertools -jar app.jar extract
 
-# Stage 4: minimal runtime image
+# Stage 4: Leyden AOT training (JDK 25, JEP 483)
+# -XX:AOTMode=record -XX:AOTCacheOutput automatically spawns a child JVM on exit
+# to assemble the cache — no separate create phase needed.
+# initialization-fail-timeout=-1 lets HikariCP create its pool object without
+# a live database so the context refresh completes.  After 10 s SIGTERM triggers
+# a graceful JVM shutdown whose shutdown hooks record the class-loading profile
+# and assemble the AOT cache (same pattern as Helidon/Quarkus).
+FROM eclipse-temurin:25-jre-alpine AS training
+WORKDIR /app
+COPY --from=layers /app/dependencies ./
+COPY --from=layers /app/spring-boot-loader ./
+COPY --from=layers /app/snapshot-dependencies ./
+COPY --from=layers /app/application ./
+RUN touch app.aot
+RUN java \
+  -XX:MaxRAMPercentage=75.0 \
+  -XX:+UseG1GC \
+  -XX:+OptimizeStringConcat \
+  -Djava.security.egd=file:/dev/./urandom \
+  -XX:AOTMode=record \
+  -XX:AOTCacheOutput=app.aot \
+  -Dspring.datasource.hikari.initialization-fail-timeout=-1 \
+  org.springframework.boot.loader.launch.JarLauncher & \
+  APP_PID=$! && sleep 10 && kill -TERM "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
+
+# Stage 5: minimal runtime image
 FROM eclipse-temurin:25-jre-alpine AS runtime
 
 RUN addgroup -S spring && adduser -S spring -G spring
@@ -26,6 +51,7 @@ COPY --from=layers /app/dependencies ./
 COPY --from=layers /app/spring-boot-loader ./
 COPY --from=layers /app/snapshot-dependencies ./
 COPY --from=layers /app/application ./
+COPY --from=training /app/app.aot ./
 
 USER spring:spring
 
@@ -36,4 +62,5 @@ ENTRYPOINT ["java", \
   "-XX:+UseG1GC", \
   "-XX:+OptimizeStringConcat", \
   "-Djava.security.egd=file:/dev/./urandom", \
+  "-XX:AOTCache=app.aot", \
   "org.springframework.boot.loader.launch.JarLauncher"]

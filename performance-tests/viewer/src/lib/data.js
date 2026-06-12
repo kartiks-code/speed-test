@@ -3,9 +3,19 @@
 
 let _index = null;
 
-export async function loadIndex() {
-  if (_index) return _index;
-  const res = await fetch("./data/index.json");
+/** Drop cached index and/or per-run JSON so the next load fetches fresh files. */
+export function clearDataCache(runId) {
+  _index = null;
+  if (runId) {
+    delete _runCache[runId];
+  } else {
+    for (const key of Object.keys(_runCache)) delete _runCache[key];
+  }
+}
+
+export async function loadIndex({ force = false } = {}) {
+  if (!force && _index) return _index;
+  const res = await fetch(`./data/index.json${force ? `?t=${Date.now()}` : ""}`);
   if (!res.ok) throw new Error(`Failed to load index.json: ${res.status}`);
   _index = await res.json();
   return _index;
@@ -13,9 +23,9 @@ export async function loadIndex() {
 
 const _runCache = {};
 
-export async function loadRun(runId) {
-  if (_runCache[runId]) return _runCache[runId];
-  const res = await fetch(`./data/runs/${runId}.json`);
+export async function loadRun(runId, { force = false } = {}) {
+  if (!force && _runCache[runId]) return _runCache[runId];
+  const res = await fetch(`./data/runs/${runId}.json${force ? `?t=${Date.now()}` : ""}`);
   if (!res.ok) throw new Error(`Failed to load run ${runId}: ${res.status}`);
   _runCache[runId] = await res.json();
   return _runCache[runId];
@@ -36,12 +46,14 @@ export function groupByStack(runs) {
   return map;
 }
 
-// Stable color palette for up to 4 comparison series
+// Stable color palette for comparison series (supports full 12-stack × 2-variant suites)
 export const SERIES_COLORS = [
-  "#6366f1", // indigo
-  "#22c55e", // green
-  "#f59e0b", // amber
-  "#ec4899", // pink
+  "#6366f1", "#22c55e", "#f59e0b", "#ec4899",
+  "#14b8a6", "#a855f7", "#f97316", "#06b6d4",
+  "#84cc16", "#e879f9", "#fb923c", "#38bdf8",
+  "#f43f5e", "#8b5cf6", "#10b981", "#eab308",
+  "#0ea5e9", "#d946ef", "#65a30d", "#c026d3",
+  "#2dd4bf", "#f472b6", "#4ade80", "#fcd34d",
 ];
 
 export function seriesColor(idx) {
@@ -75,9 +87,68 @@ export function durationsForRuns(runs) {
   return [...seen].sort((a, b) => parseInt(a) - parseInt(b));
 }
 
+// Unique sorted docker variants (naive, optimized, …) for a set of runs.
+export function variantsForRuns(runs) {
+  const seen = new Set();
+  for (const r of runs) if (r.variant) seen.add(r.variant);
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
 // Human-friendly run label shown in the final (run) dropdown.
 // Duration is shown in the parent dropdown now, so we omit it here.
 export function runLabel(run) {
   const ts = run.timestamp.replace(/T(\d{2})(\d{2})(\d{2})Z/, " $1:$2:$3Z");
   return `${run.variant} · ${ts} (${run.vus ?? "?"}VU)`;
+}
+
+/** Run picker label when stack, duration, and variant are chosen in parent dropdowns. */
+export function compareRunLabel(run) {
+  const ts = run.timestamp.replace(/T(\d{2})(\d{2})(\d{2})Z/, " $1:$2:$3Z");
+  return ts;
+}
+
+/** Normalized CRUD mix percentages for display (null when fixed crud.js cycle). */
+export function mixPercentages(mix) {
+  if (!mix) return null;
+  const total =
+    (mix.create ?? 0) + (mix.read ?? 0) + (mix.update ?? 0) + (mix.delete ?? 0);
+  if (total <= 0) return null;
+  return {
+    create: Math.round(((mix.create ?? 0) / total) * 100),
+    read: Math.round(((mix.read ?? 0) / total) * 100),
+    update: Math.round(((mix.update ?? 0) / total) * 100),
+    delete: Math.round(((mix.delete ?? 0) / total) * 100),
+  };
+}
+
+/** Unique suite names from runs, sorted alphabetically. */
+export function suiteNames(runs) {
+  const seen = new Set();
+  for (const r of runs) if (r.suite) seen.add(r.suite);
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/** Group runs by suite name (runs without a suite are omitted). */
+export function groupBySuite(runs) {
+  const map = {};
+  for (const r of runs) {
+    if (!r.suite) continue;
+    if (!map[r.suite]) map[r.suite] = [];
+    map[r.suite].push(r);
+  }
+  for (const k of Object.keys(map)) {
+    map[k].sort((a, b) => {
+      const labelCmp = a.label.localeCompare(b.label);
+      if (labelCmp !== 0) return labelCmp;
+      return a.variant.localeCompare(b.variant);
+    });
+  }
+  return map;
+}
+
+/** Filter runs that belong to a suite (partial match, case-insensitive). */
+export function filterRunsBySuite(runs, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return runs;
+  return runs.filter((r) => r.suite && r.suite.toLowerCase().includes(q));
 }

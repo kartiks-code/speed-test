@@ -1,14 +1,24 @@
 import React, { useEffect, useState } from "react";
-import { loadIndex, loadRun, groupByStack, durationsForRuns, runLabel } from "../lib/data.js";
+import { useSearchParams } from "react-router-dom";
+import { loadIndex, loadRun, groupByStack, durationsForRuns, runLabel, suiteNames, filterRunsBySuite } from "../lib/data.js";
+import { useDataRefresh } from "../lib/DataRefreshContext.jsx";
 import StatCards from "../components/StatCards.jsx";
 import LatencyChart from "../components/LatencyChart.jsx";
 import { CpuTimeSeriesChart, RamTimeSeriesChart } from "../components/TimeSeriesChart.jsx";
 import EndpointChecksChart from "../components/EndpointChecksChart.jsx";
 import PgCountersChart from "../components/PgCountersChart.jsx";
 
+function findRunInIndex(runs, runId) {
+  return runs.find((r) => r.run_id === runId) ?? null;
+}
+
 export default function SingleRun() {
+  const [searchParams] = useSearchParams();
+  const { refreshToken, lastRunId } = useDataRefresh();
   const [stacks, setStacks] = useState({});   // label -> runs[]
   const [stackKeys, setStackKeys] = useState([]);
+  const [suiteNameList, setSuiteNameList] = useState([]);
+  const [suiteFilter, setSuiteFilter] = useState("");
   const [selectedStack, setSelectedStack] = useState("");
   const [selectedDuration, setSelectedDuration] = useState("");
   const [selectedRunId, setSelectedRunId] = useState("");
@@ -18,17 +28,35 @@ export default function SingleRun() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadIndex()
+    const deepLinkRunId = searchParams.get("runId");
+    const deepLinkSuite = searchParams.get("suite");
+
+    loadIndex({ force: refreshToken > 0 })
       .then((idx) => {
-        const grouped = groupByStack(idx.runs);
+        const filteredRuns = deepLinkSuite
+          ? filterRunsBySuite(idx.runs, deepLinkSuite)
+          : idx.runs;
+        const grouped = groupByStack(filteredRuns);
         const keys = Object.keys(grouped).sort();
         setStacks(grouped);
         setStackKeys(keys);
-        if (keys.length) setSelectedStack(keys[0]);
+        setSuiteNameList(suiteNames(idx.runs));
+        if (deepLinkSuite) setSuiteFilter(deepLinkSuite);
+
+        if (deepLinkRunId) {
+          const target = findRunInIndex(idx.runs, deepLinkRunId);
+          if (target) {
+            setSelectedStack(target.label);
+            setSelectedDuration(target.duration);
+            setSelectedRunId(target.run_id);
+          }
+        } else if (refreshToken === 0 && keys.length) {
+          setSelectedStack(keys[0]);
+        }
         setLoading(false);
       })
       .catch((e) => { setError(e.message); setLoading(false); });
-  }, []);
+  }, [refreshToken, searchParams]);
 
   // When stack changes, reset duration and pick first available
   useEffect(() => {
@@ -53,10 +81,11 @@ export default function SingleRun() {
   useEffect(() => {
     if (!selectedRunId) { setRun(null); return; }
     setRunLoading(true);
-    loadRun(selectedRunId)
+    const force = refreshToken > 0 && selectedRunId === lastRunId;
+    loadRun(selectedRunId, { force })
       .then((r) => { setRun(r); setRunLoading(false); })
       .catch((e) => { setError(e.message); setRunLoading(false); });
-  }, [selectedRunId]);
+  }, [selectedRunId, refreshToken, lastRunId]);
 
   if (loading) return <div className="loading">Loading index…</div>;
   if (error) return <div className="loading" style={{ color: "#ef4444" }}>Error: {error}</div>;
@@ -70,12 +99,51 @@ export default function SingleRun() {
     );
   }
 
+  function handleSuiteFilterChange(value) {
+    setSuiteFilter(value);
+    loadIndex({ force: true })
+      .then((idx) => {
+        const filtered = filterRunsBySuite(idx.runs, value);
+        const grouped = groupByStack(filtered);
+        const keys = Object.keys(grouped).sort();
+        setStacks(grouped);
+        setStackKeys(keys);
+        setSelectedStack(keys[0] ?? "");
+      })
+      .catch(() => {});
+  }
+
   const runsForStack = stacks[selectedStack] || [];
   const durations = durationsForRuns(runsForStack);
   const runsForDuration = runsForStack.filter((r) => r.duration === selectedDuration);
 
   return (
     <div>
+      {/* Suite filter */}
+      {suiteNameList.length > 0 && (
+        <div className="suite-filter-bar" style={{ marginBottom: 20 }}>
+          <div className="control-group" style={{ flex: 1, minWidth: 220 }}>
+            <label className="control-label">Filter by suite</label>
+            <input
+              type="search"
+              className="control-input"
+              placeholder="Search suites…"
+              value={suiteFilter}
+              onChange={(e) => handleSuiteFilterChange(e.target.value)}
+              list="single-run-suite-suggestions"
+            />
+            <datalist id="single-run-suite-suggestions">
+              {suiteNameList.map((n) => <option key={n} value={n} />)}
+            </datalist>
+          </div>
+          {suiteFilter && (
+            <button type="button" className="btn-link" onClick={() => handleSuiteFilterChange("")}>
+              clear filter
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Three-step selectors */}
       <div className="controls">
         <div className="control-group">
@@ -131,6 +199,9 @@ export default function SingleRun() {
             <span className="badge"><strong>CPUs</strong> {run.meta.app_cpus ?? "—"}</span>
             <span className="badge"><strong>Memory</strong> {run.meta.app_memory || "—"}</span>
             <span className="badge"><strong>Timestamp</strong> {run.meta.timestamp}</span>
+            {run.meta.suite && (
+              <span className="badge"><strong>Suite</strong> {run.meta.suite}</span>
+            )}
             {run.meta.k6_script && (
               <span className="badge"><strong>Script</strong> {run.meta.k6_script}</span>
             )}

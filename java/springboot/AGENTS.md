@@ -19,6 +19,8 @@ Requires JDK 25+ and Maven 3.8+.
 
 The optimized Docker image (`Dockerfile.optimized`, Temurin 25 JRE) runs with **G1GC** (`-XX:+UseG1GC`), chosen for the perf harness's `--cpus 2 --memory 512m` container limits.
 
+It also uses the **Project Leyden AOT cache** (JEP 483, JDK 24+). A dedicated `training` build stage runs the app with `-XX:AOTMode=record -XX:AOTCacheOutput=app.aot` and `spring.datasource.hikari.initialization-fail-timeout=-1` so HikariCP does not block on an unavailable DB; SIGTERM after 10 s triggers a graceful JVM shutdown whose shutdown hooks record the class-loading profile and assemble the cache. The runtime stage copies `app.aot` and passes `-XX:AOTCache=app.aot` on startup; if the cache file is invalid the JVM falls back gracefully.
+
 ## Database
 
 Uses the shared PostgreSQL stack in `../../database/`, database `java-springboot`.

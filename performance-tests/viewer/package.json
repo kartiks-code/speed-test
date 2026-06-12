@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node ../server/index.mjs",
-    "dev:all": "node ../server/index.mjs & npm run dev"
+    "dev:all": "node --watch ../server/index.mjs & npm run dev"
   },
   "dependencies": {
     "react": "^18.3.1",

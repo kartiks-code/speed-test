@@ -32,14 +32,20 @@ npm run dev:all
 | `GET` | `/api/queue` | Current job queue (all statuses) |
 | `POST` | `/api/queue` | Enqueue a new run |
 | `DELETE` | `/api/queue/:id` | Cancel a pending job |
+| `POST` | `/api/runs/assign-suite` | Assign a suite name to existing runs |
+| `DELETE` | `/api/runs` | Delete completed run result directories |
+| `DELETE` | `/api/suites/:name` | Dissolve suite (remove labels) or delete all runs (`?action=delete-runs`) |
 | `GET` | `/api/events` | SSE stream of `queue_update` and `log` events |
 
 ### POST /api/queue body
+
+**Single run** (legacy):
 
 ```json
 {
   "stackId": "go",
   "variant": "naive",
+  "suiteName": "optional-suite-label",
   "durationSec": 60,
   "vus": 20,
   "mix": { "create": 25, "read": 50, "update": 15, "delete": 10 },
@@ -47,12 +53,54 @@ npm run dev:all
 }
 ```
 
-All fields except `stackId` and `variant` are optional (defaults: 60s, 20 VUs, equal 25/25/25/25 mix).
+**Named suite** (cartesian product of stacks × variants):
+
+```json
+{
+  "suiteName": "jvm-comparison-june",
+  "stackIds": ["go", "springboot", "quarkus"],
+  "variants": ["naive", "optimized"],
+  "durationSec": 60,
+  "vus": 20,
+  "mix": { "create": 25, "read": 50, "update": 15, "delete": 10 }
+}
+```
+
+Returns `{ suiteName, count, jobs }` with `count = stackIds.length × variants.length`.
+
+All fields except `stackId`/`variant` (single) or `suiteName`/`stackIds`/`variants` (batch) are optional (defaults: 60s, 20 VUs, equal 25/25/25/25 mix). Suite name is stored in each run's `run-meta.json` and searchable in the viewer.
+
+### POST /api/runs/assign-suite body
+
+Assign a suite label to existing runs (retroactive grouping):
+
+```json
+{
+  "runIds": ["go-naive-20260612T010735Z", "springboot-naive-20260612T011219Z"],
+  "suiteName": "my-retro-suite"
+}
+```
+
+### DELETE /api/runs body
+
+Permanently delete one or more completed runs:
+
+```json
+{ "runIds": ["go-naive-20260612T010735Z"] }
+```
+
+### DELETE /api/suites/:name
+
+- Default (`action` omitted): **dissolve** — remove the suite label from all matching runs; run data remains.
+- `?action=delete-runs`: delete all result directories belonging to the suite.
+
+Returns `{ action, suiteName, count|deleted, runIds }`. Regenerates viewer data and emits `data_updated` on SSE.
 
 ### SSE event types
 
 - `queue_update` — full queue state array; emitted on any status change
 - `log` — `{ jobId, line }` — one stdout/stderr line from `run.sh`
+- `data_updated` — `{ runId }` — emitted after `build-data.mjs` finishes; the viewer reloads `public/data/` automatically
 
 ## Environment variables
 

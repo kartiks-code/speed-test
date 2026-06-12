@@ -58,7 +58,23 @@ Pick a stack, duration, and specific run. Displays:
 
 ### Compare (`/compare`)
 
-Select up to 4 stack/run combinations. Each series gets a distinct color. Grouped bar and line-overlay charts for RPS, error rate, latency percentiles, CPU, RAM, and Postgres counters.
+Select up to 6 stack/run combinations manually (stack → duration → **variant** → timestamp), or search for a **suite** to compare all runs from a benchmark batch.
+
+When a suite has more than 6 stack×variant combos, results are split into pages of 6. Use **Prev/Next** or numbered page tabs to navigate. **Change groups** opens a modal where you assign each combo to a page; the layout is saved in browser localStorage and reused whenever you load that suite again.
+
+Each row shows a brief summary (VUs, seconds, CRUD mix) for the selected run. Each series gets a distinct color. Grouped bar and line-overlay charts for RPS, error rate, latency percentiles, CPU, RAM, and Postgres counters.
+
+### Manage Runs (`/manage`) — mutations require control server
+
+Filter and bulk-manage completed benchmark results:
+
+- **Filters** — same dimensions as Compare (suite search, stack, duration, variant) plus VU count, time presets (24h / 7d / 30d), and custom UTC date range
+- **Multi-select** — select all filtered, select filtered only, or pick individual rows
+- **Name as suite** — assign a suite label to selected runs after the fact
+- **Delete selected** — permanently remove chosen run directories
+- **Suites panel** — dissolve a suite (remove labels, keep runs) or delete all runs in a suite; quick link to Compare
+
+Browse and filter work view-only; assign/delete/dissolve require the control server (`npm run server` or `npm run dev:all`).
 
 ### Run Tests (`/run`) — requires control server
 
@@ -101,5 +117,7 @@ results/<run>/  →  scripts/build-data.mjs  →  public/data/index.json
 ```
 
 `build-data.mjs` now also passes `k6_script` and `mix` through to the index and per-run JSON so they appear in the Single Run badges.
+
+When the control server finishes a queued run, it regenerates `public/data/` and pushes a `data_updated` SSE event. The viewer subscribes globally and reloads the index (and any open run detail) automatically.
 
 `public/data/`, `node_modules/`, and `dist/` are all gitignored.

@@ -2,6 +2,8 @@
 
 OpenAPI Petstore server on Quarkus 3.36.x (latest) with JAX-RS resources, Arc CDI, Agroal connection pooling, and plain-JDBC persistence. Built with Gradle 9.5.x (Groovy DSL) on Java 25. All endpoints run on virtual threads via `@RunOnVirtualThread`, and the optimized Docker image (`Dockerfile.optimized`) runs on Temurin 25 with `-XX:+UseG1GC`.
 
+It also uses the **Project Leyden AOT cache** (JEP 483, JDK 24+). A dedicated `training` build stage runs the uber-jar with `-XX:AOTMode=record -XX:AOTCacheOutput=app.aot` and `quarkus.datasource.jdbc.initial-size=0` / `min-size=0` so Agroal creates no connections at startup; SIGTERM after 10 s triggers a graceful JVM shutdown whose shutdown hooks record the class-loading profile and assemble the cache. The runtime stage copies `app.aot` and passes `-XX:AOTCache=app.aot` on startup; if the cache file is invalid the JVM falls back gracefully.
+
 ## Working Directory
 
 Run all commands from `java/quarkus/` unless stated otherwise. The server listens on `:8080` and serves the API under `/api/v3`.

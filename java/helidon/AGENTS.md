@@ -81,6 +81,7 @@ equivalent mutations.
 
 - `Dockerfile` (naive) and `Dockerfile.optimized` build on Temurin 25.
 - The optimized image uses **G1GC** (`-XX:+UseG1GC`), not ZGC: with `--cpus 2 --memory 512m` the heap is only ~384MB at `MaxRAMPercentage=75`, where G1 is more memory-efficient and lower-overhead than ZGC. (`-XX:+ZGenerational` was also dropped — it is obsolete on Java 25, where generational ZGC is the default.)
+- It also uses the **Project Leyden AOT cache** (JEP 483, JDK 24+). A dedicated `training` build stage runs the jar with `-XX:AOTMode=record -XX:AOTCacheOutput=app.aot`; HikariCP fails fast (default `initializationFailTimeout=1 ms`) due to no database in the build environment, causing a clean JVM exit whose shutdown hooks record the class-loading profile and assemble the cache. SIGTERM after 10 s handles any case where the app starts successfully. The runtime stage copies `app.aot` and passes `-XX:AOTCache=app.aot` on startup; if the cache file is invalid the JVM falls back gracefully.
 
 ## Verification
 

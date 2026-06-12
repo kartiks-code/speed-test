@@ -6,7 +6,10 @@
  *   GET  /api/queue        — current job queue
  *   POST /api/queue        — enqueue a new run
  *   DELETE /api/queue/:id  — cancel a pending job
- *   GET  /api/events       — SSE stream (queue updates + live log lines)
+ *   POST /api/runs/assign-suite — assign suite label to existing runs
+ *   DELETE /api/runs       — delete completed run directories
+ *   DELETE /api/suites/:name — dissolve or delete suite runs
+ *   GET  /api/events       — SSE stream (queue updates, live log lines, data refresh)
  */
 
 import express from "express";
@@ -14,9 +17,10 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
-  getQueue, enqueue, cancelJob,
+  getQueue, enqueue, enqueueBatch, cancelJob,
   addSseClient, removeSseClient,
 } from "./queue.mjs";
+import { assignSuite, deleteRuns, dissolveSuite, deleteSuiteRuns } from "./runs.mjs";
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const PERF_DIR   = path.resolve(__dirname, "..");
@@ -30,7 +34,7 @@ app.use(express.json());
 // Allow the Vite dev server to call us during local development
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
@@ -81,11 +85,30 @@ app.get("/api/queue", (req, res) => {
 });
 
 app.post("/api/queue", (req, res) => {
-  const { stackId, variant, durationSec, vus, mix, dockerfileOverride } = req.body ?? {};
+  const body = req.body ?? {};
+  const {
+    stackId, variant, stackIds, variants, suiteName,
+    durationSec, vus, mix, dockerfileOverride,
+  } = body;
+
+  const shared = { suiteName, durationSec, vus, mix, dockerfileOverride };
+
+  if (Array.isArray(stackIds) && Array.isArray(variants)) {
+    if (!stackIds.length || !variants.length) {
+      return res.status(400).json({ error: "stackIds and variants must be non-empty arrays" });
+    }
+    const name = typeof suiteName === "string" ? suiteName.trim() : "";
+    if (!name) {
+      return res.status(400).json({ error: "suiteName is required when enqueueing multiple runs" });
+    }
+    const jobs = enqueueBatch({ suiteName: name, stackIds, variants, ...shared });
+    return res.status(201).json({ suiteName: name, count: jobs.length, jobs });
+  }
+
   if (!stackId || !variant) {
     return res.status(400).json({ error: "stackId and variant are required" });
   }
-  const job = enqueue({ stackId, variant, durationSec, vus, mix, dockerfileOverride });
+  const job = enqueue({ stackId, variant, ...shared });
   res.status(201).json(job);
 });
 
@@ -93,6 +116,42 @@ app.delete("/api/queue/:id", (req, res) => {
   const ok = cancelJob(req.params.id);
   if (!ok) return res.status(404).json({ error: "Job not found or not cancellable" });
   res.json({ ok: true });
+});
+
+// ── /api/runs — manage completed results ─────────────────────────────────────
+
+app.post("/api/runs/assign-suite", async (req, res) => {
+  try {
+    const { runIds, suiteName } = req.body ?? {};
+    const result = await assignSuite({ runIds, suiteName });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/runs", async (req, res) => {
+  try {
+    const { runIds } = req.body ?? {};
+    const result = await deleteRuns({ runIds });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/suites/:name", async (req, res) => {
+  try {
+    const suiteName = decodeURIComponent(req.params.name);
+    const action = req.query.action === "delete-runs" ? "delete-runs" : "dissolve";
+    const result = action === "delete-runs"
+      ? await deleteSuiteRuns(suiteName)
+      : await dissolveSuite(suiteName);
+    res.json({ action, ...result });
+  } catch (err) {
+    const status = err.message.includes("not found") ? 404 : 400;
+    res.status(status).json({ error: err.message });
+  }
 });
 
 // ── /api/events (SSE) ─────────────────────────────────────────────────────────

@@ -7,16 +7,14 @@
  */
 
 import { spawn } from "child_process";
-import { readFileSync, readdirSync, existsSync } from "fs";
+import { readdirSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createRequire } from "module";
+import { regenerateViewerData, setDataRefreshBroadcast } from "./dataRefresh.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PERF_DIR  = path.resolve(__dirname, "..");
-const REPO_ROOT = path.resolve(PERF_DIR, "..");
 const RUN_SH    = path.join(PERF_DIR, "run.sh");
-const BUILD_DATA = path.join(PERF_DIR, "viewer", "scripts", "build-data.mjs");
 const RESULTS_DIR = path.join(PERF_DIR, "results");
 
 // ── SSE broadcast ─────────────────────────────────────────────────────────────
@@ -38,10 +36,12 @@ function broadcast(type, data) {
   }
 }
 
+setDataRefreshBroadcast(broadcast);
+
 // ── queue state ───────────────────────────────────────────────────────────────
 
 let jobIdCounter = 1;
-const queue = [];   // { id, stackId, variant, durationSec, vus, mix, status, runId, createdAt, startedAt, finishedAt }
+const queue = [];   // { id, stackId, variant, suiteName, durationSec, vus, mix, status, runId, createdAt, startedAt, finishedAt }
 let running = false;
 
 export function getQueue() {
@@ -53,6 +53,7 @@ export function enqueue(params) {
     id: String(jobIdCounter++),
     stackId: params.stackId,
     variant: params.variant,
+    suiteName: params.suiteName ?? null,
     durationSec: params.durationSec ?? 60,
     vus: params.vus ?? 20,
     mix: {
@@ -73,6 +74,22 @@ export function enqueue(params) {
   broadcast("queue_update", { queue: getQueue() });
   setImmediate(processNext);
   return job;
+}
+
+/** Enqueue the cartesian product of stackIds × variants as one named suite. */
+export function enqueueBatch({ suiteName, stackIds, variants, ...shared }) {
+  const jobs = [];
+  for (const stackId of stackIds) {
+    for (const variant of variants) {
+      jobs.push(enqueue({
+        stackId,
+        variant,
+        suiteName: suiteName || null,
+        ...shared,
+      }));
+    }
+  }
+  return jobs;
 }
 
 export function cancelJob(id) {
@@ -110,7 +127,8 @@ async function processNext() {
 
   // Regenerate viewer data for the new result
   try {
-    await regenerateViewerData(job);
+    await regenerateViewerData({ onLog: (line) => appendLog(job, line) });
+    broadcast("data_updated", { runId: job.runId });
   } catch (err) {
     appendLog(job, `[server] build-data warn: ${err.message}`);
   }
@@ -139,8 +157,12 @@ function runJob(job) {
     if (job.dockerfileOverride) {
       env.DOCKERFILE_OVERRIDE = job.dockerfileOverride;
     }
+    if (job.suiteName) {
+      env.SUITE_NAME = job.suiteName;
+    }
 
-    appendLog(job, `[server] Starting: ${job.stackId} ${job.variant} VUs=${job.vus} Duration=${job.durationSec}s Mix=${JSON.stringify(job.mix)}`);
+    const suiteTag = job.suiteName ? ` suite=${job.suiteName}` : "";
+    appendLog(job, `[server] Starting: ${job.stackId} ${job.variant}${suiteTag} VUs=${job.vus} Duration=${job.durationSec}s Mix=${JSON.stringify(job.mix)}`);
 
     const child = spawn("bash", [RUN_SH, job.stackId, job.variant], {
       cwd: PERF_DIR,
@@ -181,19 +203,3 @@ function findRunId(stackId, variant) {
   return dirs[0] ?? null;
 }
 
-async function regenerateViewerData(job) {
-  appendLog(job, "[server] Regenerating viewer data...");
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [BUILD_DATA], {
-      cwd: PERF_DIR,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    child.stdout.on("data", (d) => appendLog(job, d.toString().trim()));
-    child.stderr.on("data", (d) => appendLog(job, d.toString().trim()));
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code !== 0) reject(new Error(`build-data exited ${code}`));
-      else resolve();
-    });
-  });
-}

@@ -13,7 +13,28 @@ COPY src ./src
 RUN ./gradlew build -x test -q && \
     cp build/*-runner.jar app-runner.jar
 
-# Stage 2: minimal JRE runtime on Alpine
+# Stage 2: Leyden AOT training (JDK 25, JEP 483)
+# -XX:AOTMode=record -XX:AOTCacheOutput automatically spawns a child JVM on exit
+# to assemble the cache — no separate create phase needed.
+# Quarkus is started with jdbc.initial-size=0 / min-size=0 so Agroal creates no
+# connections at startup.  After 10 s SIGTERM triggers a graceful JVM shutdown
+# whose shutdown hooks record the class-loading profile and build the AOT cache.
+FROM eclipse-temurin:25-jre-alpine AS training
+WORKDIR /app
+COPY --from=build /app/app-runner.jar app.jar
+RUN touch app.aot
+RUN java \
+  -XX:MaxRAMPercentage=75.0 \
+  -XX:+UseG1GC \
+  -Djava.security.egd=file:/dev/./urandom \
+  -XX:AOTMode=record \
+  -XX:AOTCacheOutput=app.aot \
+  -Dquarkus.datasource.jdbc.initial-size=0 \
+  -Dquarkus.datasource.jdbc.min-size=0 \
+  -jar app.jar & \
+  APP_PID=$! && sleep 10 && kill -TERM "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
+
+# Stage 3: minimal JRE runtime on Alpine
 FROM eclipse-temurin:25-jre-alpine AS runtime
 
 RUN addgroup -S quarkus && adduser -S quarkus -G quarkus
@@ -21,6 +42,7 @@ RUN addgroup -S quarkus && adduser -S quarkus -G quarkus
 WORKDIR /app
 
 COPY --from=build /app/app-runner.jar app.jar
+COPY --from=training /app/app.aot ./
 
 USER quarkus
 
@@ -31,4 +53,5 @@ ENTRYPOINT ["java", \
   "-XX:MaxRAMPercentage=75.0", \
   "-XX:+UseG1GC", \
   "-Djava.security.egd=file:/dev/./urandom", \
+  "-XX:AOTCache=app.aot", \
   "-jar", "app.jar"]
