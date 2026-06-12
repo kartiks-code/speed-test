@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -50,11 +51,26 @@ func NewPostgresStore(ctx context.Context, dsn string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, err
 	}
+	applyPoolSettingsFromEnv(db)
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
 		return nil, err
 	}
 	return &PostgresStore{db: db}, nil
+}
+
+// applyPoolSettingsFromEnv tunes the connection pool from optional env vars.
+// Unset (or unparsable) variables leave the database/sql defaults untouched.
+func applyPoolSettingsFromEnv(db *sql.DB) {
+	if v, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS")); err == nil {
+		db.SetMaxOpenConns(v)
+	}
+	if v, err := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS")); err == nil {
+		db.SetMaxIdleConns(v)
+	}
+	if v, err := strconv.Atoi(os.Getenv("DB_CONN_MAX_IDLE_TIME_SECONDS")); err == nil {
+		db.SetConnMaxIdleTime(time.Duration(v) * time.Second)
+	}
 }
 
 func NewPostgresStoreFromEnv(ctx context.Context) (*PostgresStore, error) {

@@ -39,6 +39,17 @@ export DATABASE_URL='postgres://postgres:mysecret@localhost:5432/go-gin-server?s
 
 `PORT` controls the HTTP port and defaults to `8080`.
 
+Optional tuning variables (all default to current behavior when unset):
+
+| Variable | Effect |
+|---|---|
+| `GIN_DISABLE_REQUEST_LOGGING` | `true` builds the engine with `gin.New()` + `gin.Recovery()` (no per-request logger); otherwise `gin.Default()` |
+| `DB_MAX_OPEN_CONNS` | `sql.DB SetMaxOpenConns` |
+| `DB_MAX_IDLE_CONNS` | `sql.DB SetMaxIdleConns` |
+| `DB_CONN_MAX_IDLE_TIME_SECONDS` | `sql.DB SetConnMaxIdleTime` (seconds) |
+
+`Dockerfile.optimized` sets `GIN_DISABLE_REQUEST_LOGGING=true`, `GOMEMLIMIT=460MiB`, `DB_MAX_OPEN_CONNS=200`, and `DB_MAX_IDLE_CONNS=50` for the benchmark harness's optimized variant.
+
 ## Run
 
 ```bash

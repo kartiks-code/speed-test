@@ -38,9 +38,10 @@ USER appuser
 
 EXPOSE 8080
 
-# 4 workers; tune WEB_CONCURRENCY env var at runtime for your CPU count
-CMD ["uvicorn", "petstore.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8080", \
-     "--workers", "4", \
-     "--no-access-log"]
+# 2 workers matches the harness --cpus 2 limit; 2 workers x 100 pool max = 200 DB
+# connections, which handles up to 500 VUs via pool queueing well under Postgres
+# max_connections=500. Override via env at runtime.
+ENV WEB_CONCURRENCY=2 ASYNCPG_POOL_MAX_SIZE=100
+
+# sh -c so ${WEB_CONCURRENCY} expands; exec replaces the shell as PID 1
+CMD ["sh", "-c", "exec uvicorn petstore.main:app --host 0.0.0.0 --port 8080 --workers ${WEB_CONCURRENCY:-2} --no-access-log --log-level warning"]

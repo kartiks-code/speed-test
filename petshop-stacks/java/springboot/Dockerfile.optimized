@@ -30,6 +30,7 @@ COPY --from=layers /app/snapshot-dependencies ./
 COPY --from=layers /app/application ./
 RUN touch app.aot
 RUN java \
+  -XX:InitialRAMPercentage=75.0 \
   -XX:MaxRAMPercentage=75.0 \
   -XX:+UseG1GC \
   -XX:+OptimizeStringConcat \
@@ -37,6 +38,9 @@ RUN java \
   -XX:AOTMode=record \
   -XX:AOTCacheOutput=app.aot \
   -Dspring.datasource.hikari.initialization-fail-timeout=-1 \
+  -Dspringdoc.swagger-ui.enabled=false \
+  -Dspringdoc.api-docs.enabled=false \
+  -Dlogging.level.root=WARN \
   org.springframework.boot.loader.launch.JarLauncher & \
   APP_PID=$! && sleep 10 && kill -TERM "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
 
@@ -58,9 +62,13 @@ USER spring:spring
 EXPOSE 8080
 
 ENTRYPOINT ["java", \
+  "-XX:InitialRAMPercentage=75.0", \
   "-XX:MaxRAMPercentage=75.0", \
   "-XX:+UseG1GC", \
   "-XX:+OptimizeStringConcat", \
   "-Djava.security.egd=file:/dev/./urandom", \
   "-XX:AOTCache=app.aot", \
+  "-Dspringdoc.swagger-ui.enabled=false", \
+  "-Dspringdoc.api-docs.enabled=false", \
+  "-Dlogging.level.root=WARN", \
   "org.springframework.boot.loader.launch.JarLauncher"]

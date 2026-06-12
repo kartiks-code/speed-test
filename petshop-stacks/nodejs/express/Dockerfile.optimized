@@ -18,6 +18,11 @@ USER nodejs
 
 ENV NODE_ENV=production
 
+# 2 cluster workers match the harness --cpus 2 limit; 2 workers x PG_POOL_MAX=100
+# gives at most 200 DB connections, which handles up to 500 VUs via pool queueing
+# while staying well under Postgres max_connections=500.
+ENV WEB_CONCURRENCY=2 PG_POOL_MAX=100 EXPRESS_LEAN=true
+
 EXPOSE 8080
 
-CMD ["node", "index.js"]
+CMD ["node", "cluster.js"]

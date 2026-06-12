@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import javax.sql.DataSource;
+import java.util.Optional;
 
 @ApplicationScoped
 public class DataSourceProvider {
@@ -41,6 +42,13 @@ public class DataSourceProvider {
     @ConfigProperty(name = "HIKARI_MAXIMUM_POOL_SIZE", defaultValue = "200")
     private int maximumPoolSize;
 
+    // When unset, HikariCP defaults minimumIdle to maximumPoolSize, opening all
+    // connections at startup. Setting a lower value keeps startup light while the
+    // pool can still grow to maximumPoolSize under load.
+    @Inject
+    @ConfigProperty(name = "HIKARI_MINIMUM_IDLE")
+    private Optional<Integer> minimumIdle;
+
     private HikariDataSource dataSource;
 
     @PostConstruct
@@ -50,6 +58,7 @@ public class DataSourceProvider {
         cfg.setUsername(user);
         cfg.setPassword(password);
         cfg.setMaximumPoolSize(maximumPoolSize);
+        minimumIdle.ifPresent(cfg::setMinimumIdle);
         dataSource = new HikariDataSource(cfg);
     }
 

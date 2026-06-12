@@ -39,6 +39,18 @@ set -a && source ../database/.env && set +a
 export POSTGRES_DB=nodejs-express
 ```
 
+### Tuning configuration
+
+All optional; defaults preserve the original (naive) behavior. The optimized Docker image (`Dockerfile.optimized`) sets the tuned values.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `WEB_CONCURRENCY` | `1` | Number of `node:cluster` workers started by `cluster.js`; `1` runs the app directly |
+| `PG_POOL_MAX` | unset (pg default `10`) | `max` connections per process in the `pg.Pool` |
+| `PG_POOL_IDLE_TIMEOUT_MS` | unset (pg default `10000`) | Pool `idleTimeoutMillis` |
+| `EXPRESS_LEAN` | unset | `true` disables ETag generation and the `X-Powered-By` header |
+| `NODE_ENV` | unset | `production` drops winston file transports (`error.log`/`combined.log`) and logs only errors to the console |
+
 ## Install and Run
 
 ```bash
@@ -78,7 +90,8 @@ nodejs/
 ├── utils/openapiRouter.js
 ├── expressServer.js      # Express + OpenAPI validator setup
 ├── config.js             # port, paths
-└── index.js              # entry point
+├── index.js              # entry point
+└── cluster.js            # optional multi-process entry (WEB_CONCURRENCY workers)
 ```
 
 All business logic lives in `services/` and `db/`. Controllers are generated and should not need changes. See `AGENTS.md` for implementation conventions.

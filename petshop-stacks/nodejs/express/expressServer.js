@@ -27,9 +27,12 @@ class ExpressServer {
 
   setupMiddleware() {
     // this.setupAllowedMedia();
+    if (process.env.EXPRESS_LEAN === 'true') {
+      this.app.set('etag', false);
+      this.app.disable('x-powered-by');
+    }
     this.app.use(cors());
     this.app.use(bodyParser.json({ limit: '14MB' }));
-    this.app.use(express.json());
     this.app.use(express.raw({ type: 'application/octet-stream', limit: '14MB' }));
     this.app.use(express.urlencoded({ extended: false }));
     this.app.use(cookieParser());

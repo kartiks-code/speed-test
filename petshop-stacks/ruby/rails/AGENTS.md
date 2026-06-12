@@ -29,6 +29,19 @@ Shared PostgreSQL at `localhost:5434`. Database: `ruby-rails`.
 
 Set these or pass `DATABASE_URL` to override.
 
+### Tuning environment variables
+
+Defaults preserve single-mode, info-logging behavior; `Dockerfile.optimized` sets
+the tuned values for benchmarks.
+
+| Variable             | Default | `Dockerfile.optimized` | Effect |
+|----------------------|---------|------------------------|--------|
+| `WEB_CONCURRENCY`    | `0`     | `2`                    | Puma worker processes (`0` = single mode). `preload_app!` is disabled because the app runs in the development env where preload conflicts with the reloader. |
+| `RAILS_MAX_THREADS`  | `5`     | `10`                   | Puma threads per worker. Threads hold thread-local PG connections, so max DB connections ≈ workers × threads. |
+| `RAILS_LOG_LEVEL`    | `info`  | `warn`                 | Rails log level (set in `config/application.rb`, also honored by `config/environments/production.rb`). |
+| `RUBY_YJIT_ENABLE`   | unset   | `1`                    | Enables YJIT. |
+| `LD_PRELOAD`         | unset   | `/usr/lib/libjemalloc.so.2` | jemalloc allocator (installed via `apk add jemalloc` in the optimized image). |
+
 ## Build / Test / Run
 
 | Command                           | What it does                       |

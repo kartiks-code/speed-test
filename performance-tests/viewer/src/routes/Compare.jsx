@@ -21,6 +21,7 @@ import {
   CpuCompareChart,
   RamCompareChart,
   PgCompareChart,
+  StartupCompareChart,
 } from "../components/CompareCharts.jsx";
 import { CpuOverlayChart, RamOverlayChart } from "../components/TimeSeriesChart.jsx";
 import CompareMetricsTable from "../components/CompareMetricsTable.jsx";
@@ -649,6 +650,7 @@ export default function Compare() {
                   <RpsCompareChart series={chartSeries} />
                   <ErrorRateCompareChart series={chartSeries} />
                   <LatencyCompareChart series={chartSeries} />
+                  <StartupCompareChart series={chartSeries} />
                 </div>
               </div>
 

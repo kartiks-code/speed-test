@@ -30,8 +30,18 @@ Copy `.env.example` to `.env` and adjust if needed (the defaults match `database
 | `POSTGRES_USER` / `PGUSER` | `myuser` | Postgres user |
 | `POSTGRES_PASSWORD` / `PGPASSWORD` | `mypassword` | Postgres password |
 | `POSTGRES_DB` / `PGDATABASE` | `rust-server` | Database name |
+| `DB_POOL_MAX` | `10` | sqlx pool `max_connections`; falls back to 10 if unset, non-numeric, or `0`. `Dockerfile.optimized` sets it to `200` in its runtime stage |
 
 The server loads `.env` at startup (non-fatal if absent) via `dotenvy`.
+
+### Docker variants
+
+The benchmark harness builds two images: `Dockerfile` (naive) and `Dockerfile.optimized`.
+The optimized builder stage sets `CARGO_PROFILE_RELEASE_LTO=thin` and
+`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1` as env vars (before `cargo chef cook`, so the
+cached dependency layer uses the same profile). Keep `[profile.release]` in `Cargo.toml`
+stock — profile tweaks belong in the optimized Dockerfile only so the naive build stays
+unmodified.
 
 ## Running the Server
 

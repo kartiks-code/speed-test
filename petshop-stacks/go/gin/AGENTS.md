@@ -32,6 +32,19 @@ cd ../petshop-stacks/go/gin
 | `POSTGRES_DB` | `go-gin-server` | |
 | `POSTGRES_SSLMODE` | `disable` | |
 
+### Tuning environment variables (optional)
+
+These are unset by default; unset preserves current behavior. The benchmark harness's `Dockerfile.optimized` sets them via `ENV` (the harness `env` block in `performance-tests/stacks.json` applies to both variants, so tuning must stay env-driven).
+
+| Variable | Default | Effect |
+|---|---|---|
+| `GIN_DISABLE_REQUEST_LOGGING` | unset | `true` → engine built with `gin.New()` + `gin.Recovery()` (no per-request logger) instead of `gin.Default()` (`go/routers.go`) |
+| `DB_MAX_OPEN_CONNS` | unset (unlimited) | `sql.DB SetMaxOpenConns` (`go/store.go`) |
+| `DB_MAX_IDLE_CONNS` | unset (Go default 2) | `sql.DB SetMaxIdleConns` (`go/store.go`) |
+| `DB_CONN_MAX_IDLE_TIME_SECONDS` | unset (no limit) | `sql.DB SetConnMaxIdleTime`, in seconds (`go/store.go`) |
+
+`Dockerfile.optimized` sets `GIN_DISABLE_REQUEST_LOGGING=true GOMEMLIMIT=460MiB DB_MAX_OPEN_CONNS=200 DB_MAX_IDLE_CONNS=50`: a pool of 200 handles up to 500 k6 VUs via queueing while staying under Postgres `max_connections=500`, and `GOMEMLIMIT` aligns the GC with the harness's 512m memory limit.
+
 To point at the shared Compose stack, export a full DSN or override the parts:
 
 ```bash

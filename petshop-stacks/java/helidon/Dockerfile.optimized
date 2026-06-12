@@ -24,7 +24,9 @@ COPY --from=build /app/target/libs libs
 RUN touch app.aot
 RUN java \
   -XX:MaxRAMPercentage=75.0 \
+  -XX:InitialRAMPercentage=75.0 \
   -XX:+UseG1GC \
+  -XX:+OptimizeStringConcat \
   -Djava.security.egd=file:/dev/./urandom \
   -XX:AOTMode=record \
   -XX:AOTCacheOutput=app.aot \
@@ -46,12 +48,22 @@ USER helidon:helidon
 
 EXPOSE 8080
 
+# Pre-open only 25 idle connections instead of all 200 at startup; the pool can
+# still grow to maximumPoolSize=200 under load (up to 500 VUs queue cleanly
+# under Postgres max_connections=500).
+ENV HIKARI_MINIMUM_IDLE=25
+
 # G1GC is used because the container heap is small (~384MB under the 512MB
 # limit at MaxRAMPercentage=75); at that size G1 is more memory-efficient and
 # lower-overhead than ZGC.  MaxRAMPercentage caps heap at 75% of cgroup memory.
+# -Dmetrics.rest-request.enabled=false disables per-request MicroProfile metrics
+# instrumentation during benchmarks (the naive image keeps it enabled).
 ENTRYPOINT ["java", \
   "-XX:MaxRAMPercentage=75.0", \
+  "-XX:InitialRAMPercentage=75.0", \
   "-XX:+UseG1GC", \
+  "-XX:+OptimizeStringConcat", \
   "-Djava.security.egd=file:/dev/./urandom", \
+  "-Dmetrics.rest-request.enabled=false", \
   "-XX:AOTCache=app.aot", \
   "-jar", "app.jar"]

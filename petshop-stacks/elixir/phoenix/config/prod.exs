@@ -4,3 +4,6 @@ import Config
 config :petstore, PetstoreWeb.Endpoint,
   cache_static_manifest: "priv/static/cache_manifest.json",
   server: true
+
+# Skip per-request info logging under benchmark load
+config :logger, level: :warning

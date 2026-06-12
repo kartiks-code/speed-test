@@ -380,6 +380,7 @@ fun createDataSource(): HikariDataSource {
         username = user
         password = pass
         driverClassName = "org.postgresql.Driver"
-        maximumPoolSize = 10
+        maximumPoolSize = System.getenv("HIKARI_MAXIMUM_POOL_SIZE")?.toInt() ?: 10
+        System.getenv("HIKARI_MINIMUM_IDLE")?.let { minimumIdle = it.toInt() }
     })
 }

@@ -36,6 +36,11 @@ docker compose up -d
 | `POSTGRES_USER` | `myuser` | |
 | `POSTGRES_PASSWORD` | `mypassword` | |
 | `USE_IN_MEMORY_DB` | `false` | Set `true` to bypass Postgres (tests / dev) |
+| `PG_MAX_POOL_SIZE` | *(unset)* | When set, appends `Maximum Pool Size=<value>` to the connection string (including `DATABASE_URL`, unless it already specifies a pool size). Unset = Npgsql default (100). `Dockerfile.optimized` sets `200` for the benchmark harness. |
+
+### Benchmark tuning (`Dockerfile.optimized` only)
+
+The optimized Docker image additionally sets `ASPNETCORE_ENVIRONMENT=Production`, `Logging__LogLevel__Default=Warning`, `Logging__LogLevel__Microsoft.AspNetCore=Warning`, and `PG_MAX_POOL_SIZE=200` (pool of 200 handles up to 500 k6 VUs via queueing under Postgres `max_connections=500`). The naive `Dockerfile` is unchanged, so defaults preserve current behavior.
 
 ## Project Layout
 

@@ -38,5 +38,12 @@ EXPOSE 8080
 
 ENV PHX_SERVER=true
 
+# POOL_SIZE=200: queue up to 500 k6 VUs on 200 DB connections (Postgres max_connections=500).
+# ERL_FLAGS: +S 2:2 pins schedulers to the harness CPU quota (--cpus 2; the BEAM
+# doesn't read cgroup quotas), and the +sbwt* flags disable scheduler busy-waiting,
+# which wastes CPU in CPU-capped containers.
+ENV POOL_SIZE=200 \
+    ERL_FLAGS="+S 2:2 +sbwt none +sbwtdcpu none +sbwtdio none"
+
 ENTRYPOINT ["/app/bin/petstore"]
 CMD ["start"]

@@ -21,8 +21,10 @@ FROM eclipse-temurin:25-jre-alpine AS training
 WORKDIR /app
 COPY --from=build /app/app-runner.jar app.jar
 RUN java \
+  -XX:InitialRAMPercentage=75.0 \
   -XX:MaxRAMPercentage=75.0 \
   -XX:+UseG1GC \
+  -XX:+OptimizeStringConcat \
   -Djava.security.egd=file:/dev/./urandom \
   -XX:ArchiveClassesAtExit=app.jsa \
   -Dquarkus.datasource.jdbc.initial-size=0 \
@@ -44,11 +46,17 @@ USER quarkus
 
 EXPOSE 8080
 
+# WARN-level logging cuts per-request log overhead under benchmark load.
+ENV QUARKUS_LOG_LEVEL=WARN
+
 # Quarkus uber-jar with AppCDS for faster class loading.  G1GC with
 # container-aware heap sizing; urandom avoids SecureRandom blocking.
+# Heap/GC flags must match the training stage so the CDS archive stays valid.
 ENTRYPOINT ["java", \
+  "-XX:InitialRAMPercentage=75.0", \
   "-XX:MaxRAMPercentage=75.0", \
   "-XX:+UseG1GC", \
+  "-XX:+OptimizeStringConcat", \
   "-Djava.security.egd=file:/dev/./urandom", \
   "-XX:SharedArchiveFile=app.jsa", \
   "-jar", "app.jar"]

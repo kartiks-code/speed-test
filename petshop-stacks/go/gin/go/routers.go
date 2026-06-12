@@ -12,6 +12,7 @@ package petstore
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +31,18 @@ type Route struct {
 
 // NewRouter returns a new router.
 func NewRouter(handleFunctions ApiHandleFunctions) *gin.Engine {
-	return NewRouterWithGinEngine(gin.Default(), handleFunctions)
+	return NewRouterWithGinEngine(newGinEngine(), handleFunctions)
+}
+
+// newGinEngine builds the base engine. When GIN_DISABLE_REQUEST_LOGGING=true,
+// the per-request logger middleware is omitted (recovery is kept).
+func newGinEngine() *gin.Engine {
+	if os.Getenv("GIN_DISABLE_REQUEST_LOGGING") == "true" {
+		engine := gin.New()
+		engine.Use(gin.Recovery())
+		return engine
+	}
+	return gin.Default()
 }
 
 // NewRouter add routes to existing gin engine.

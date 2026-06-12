@@ -185,7 +185,11 @@ def load_run(run_dir: Path) -> dict | None:
     row.update(parse_k6_summary(run_dir / "k6-summary.json"))
     row.update(parse_docker_stats(run_dir / "docker-stats.csv", app_container, timing))
     row.update(parse_pg_delta(run_dir / "pg-delta.json"))
-    row["startup_seconds"] = (timing or {}).get("startup_seconds")
+    t = timing or {}
+    row["startup_ms"] = t.get("startup_ms") or (
+        round(t["startup_seconds"] * 1000) if t.get("startup_seconds") is not None else None
+    )
+    row["startup_seconds"] = t.get("startup_seconds")
 
     return row
 
@@ -194,7 +198,7 @@ def load_run(run_dir: Path) -> dict | None:
 
 COLUMNS = [
     "run_id", "stack", "variant", "timestamp",
-    "vus", "duration", "app_cpus", "app_memory", "startup_seconds",
+    "vus", "duration", "app_cpus", "app_memory", "startup_ms", "startup_seconds",
     # k6
     "k6_rps", "k6_avg_ms", "k6_p50_ms", "k6_p90_ms", "k6_p95_ms", "k6_p99_ms",
     "k6_max_ms", "k6_error_rate", "k6_total_requests",

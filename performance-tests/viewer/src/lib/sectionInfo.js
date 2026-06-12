@@ -34,6 +34,11 @@ export const SECTION_INFO = {
         explanation:
           "99th-percentile latency — the worst 1% of requests. Even though this affects only one in a hundred users, it matters enormously for interactive applications and retry-heavy microservice chains. High p99 often exposes lock waits, long GC pauses, or resource starvation that p50 completely hides.",
       },
+      {
+        label: "Startup (ms)",
+        explanation:
+          "Time in milliseconds from when Docker started the container to when the server responded to its first readiness probe. Measured with 100 ms poll granularity using a host-side curl against the published port — no Docker-container-per-probe overhead. This includes JVM warm-up, dependency injection, database connection-pool initialisation, and any compile-on-start work. Interpreted languages (Node.js, Python, Ruby) and compiled native binaries (Go, Rust) typically start in under a second; JVM stacks (Spring Boot, Helidon, Quarkus, Ktor) usually take several seconds or more. Startup time matters for autoscaling: slow-starting stacks take longer to replace failed instances and add latency during scale-out events.",
+      },
     ],
   },
 

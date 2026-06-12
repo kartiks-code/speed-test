@@ -25,9 +25,12 @@ USER ktor:ktor
 
 EXPOSE 8080
 
+# Hikari pool sizing: 200 handles up to 500 k6 VUs via queueing, under Postgres max_connections=500
+ENV HIKARI_MAXIMUM_POOL_SIZE=200 HIKARI_MINIMUM_IDLE=25
+
 # G1GC with container-aware sizing; ZGC optional for low-latency profiles
 ENTRYPOINT ["java", \
-  "-server", \
+  "-XX:InitialRAMPercentage=75.0", \
   "-XX:MaxRAMPercentage=75.0", \
   "-XX:+UseG1GC", \
   "-XX:MaxGCPauseMillis=100", \

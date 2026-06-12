@@ -22,14 +22,30 @@ namespace Petstore.Repositories
         {
             var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
             if (!string.IsNullOrEmpty(databaseUrl))
-                return databaseUrl;
+                return ApplyPoolSize(databaseUrl);
 
             var host = Environment.GetEnvironmentVariable("POSTGRES_HOST") ?? "localhost";
             var port = Environment.GetEnvironmentVariable("POSTGRES_PORT") ?? "5434";
             var user = Environment.GetEnvironmentVariable("POSTGRES_USER") ?? "myuser";
             var password = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "mypassword";
             var db = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "csharp-aspnetcore";
-            return $"Host={host};Port={port};Username={user};Password={password};Database={db}";
+            return ApplyPoolSize($"Host={host};Port={port};Username={user};Password={password};Database={db}");
+        }
+
+        // Appends "Maximum Pool Size" from PG_MAX_POOL_SIZE when set; unset keeps
+        // the Npgsql default (100). Skips appending if the connection string
+        // already specifies a pool size, so explicit DATABASE_URL settings win.
+        private static string ApplyPoolSize(string connectionString)
+        {
+            var poolSize = Environment.GetEnvironmentVariable("PG_MAX_POOL_SIZE");
+            if (string.IsNullOrEmpty(poolSize))
+                return connectionString;
+
+            var lower = connectionString.ToLowerInvariant();
+            if (lower.Contains("maximum pool size") || lower.Contains("max pool size") || lower.Contains("maxpoolsize"))
+                return connectionString;
+
+            return $"{connectionString};Maximum Pool Size={poolSize}";
         }
 
         private NpgsqlConnection OpenConnection() =>

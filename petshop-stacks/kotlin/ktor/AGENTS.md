@@ -26,6 +26,21 @@ cd ../../../database && docker compose up -d && ./create-databases.sh && ./apply
 
 Connection defaults in `AppMain.kt` match `database/.env` (host `localhost`, port `5434`, user `myuser`, password `mypassword`, db `kotlin-ktor`). Override with `POSTGRES_*` env vars or a full `DATABASE_URL` (JDBC URL).
 
+### Tuning env vars
+
+HikariCP pool sizing in `PostgresPetstoreRepository.createDataSource()` is env-driven; defaults preserve baseline behavior:
+
+| Env var | Default | Effect |
+|---|---|---|
+| `HIKARI_MAXIMUM_POOL_SIZE` | `10` | Hikari `maximumPoolSize` |
+| `HIKARI_MINIMUM_IDLE` | unset | Hikari `minimumIdle`; only applied when set (unset keeps Hikari's default = max pool size) |
+
+`Dockerfile.optimized` sets `HIKARI_MAXIMUM_POOL_SIZE=200 HIKARI_MINIMUM_IDLE=25` for the benchmark harness (200 handles up to 500 k6 VUs via queueing, under Postgres `max_connections=500`).
+
+### Logging
+
+`src/main/resources/logback.xml` root level is `WARN` (it was previously misconfigured at `trace`, which flooded stdout with millions of log lines under load and skewed benchmarks).
+
 ## Code Structure
 
 ```

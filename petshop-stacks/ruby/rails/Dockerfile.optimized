@@ -18,7 +18,7 @@ RUN gem install bundler --no-document && \
 # Stage 2: minimal runtime — only runtime libs, no compiler/headers
 FROM ruby:3.4-alpine AS runtime
 
-RUN apk add --no-cache libpq tzdata
+RUN apk add --no-cache libpq tzdata jemalloc
 
 RUN addgroup -S rails && adduser -S rails -G rails
 
@@ -41,6 +41,13 @@ ENV RAILS_ENV=production \
     RAILS_LOG_TO_STDOUT=true \
     BUNDLE_PATH=/usr/local/bundle \
     BUNDLE_WITHOUT="development test"
+
+# Benchmark tuning: jemalloc allocator, YJIT, Puma cluster mode.
+# 2 workers x 10 threads = 20 concurrent slots on 2 CPUs; thread-local PG
+# connections mean max ~20 DB connections per container — fine for up to
+# 500 VUs (requests queue in Puma).
+ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2
+ENV RUBY_YJIT_ENABLE=1 WEB_CONCURRENCY=2 RAILS_MAX_THREADS=10 RAILS_LOG_LEVEL=warn
 
 EXPOSE 8080
 

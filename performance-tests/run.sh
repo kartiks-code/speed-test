@@ -94,6 +94,7 @@ check_prereqs() {
     require_cmd python3
     require_cmd jq
     require_cmd psql
+    require_cmd curl
     # Verify docker socket is accessible
     [[ -S /var/run/docker.sock ]] || die "/var/run/docker.sock not found. Is Docker running?"
     # Verify postgres container is up
@@ -166,22 +167,22 @@ now_utc() {
     date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+# Poll the readiness URL using host-side curl (against the published host_port).
+# This avoids spawning a curlimages/curl container per probe, which costs 300–600 ms
+# each, and allows 100 ms poll intervals for sub-second startup resolution.
 wait_ready() {
     local container="$1"
     local readiness_url="$2"
     local timeout="${3:-60}"
-    local deadline=$(( $(date +%s) + timeout ))
+    local deadline_ms=$(( $(date +%s%3N) + timeout * 1000 ))
 
     log "Waiting for $container to be ready at $readiness_url (timeout: ${timeout}s)..."
-    while [[ $(date +%s) -lt $deadline ]]; do
-        if docker run --rm --network "$DOCKER_NETWORK" \
-               --entrypoint curl \
-               curlimages/curl:latest \
-               -sf --max-time 2 "$readiness_url" &>/dev/null; then
+    while [[ $(date +%s%3N) -lt $deadline_ms ]]; do
+        if curl -sf --max-time 1 "$readiness_url" &>/dev/null; then
             log "$container is ready"
             return 0
         fi
-        sleep 2
+        sleep 0.1
     done
     warn "Container $container did not become ready within ${timeout}s"
     return 1
@@ -316,8 +317,8 @@ run_one() {
     log "Starting container $container_name (host port ${host_port} → container 8080) ..."
     local container_started_at
     container_started_at=$(now_utc)
-    local container_started_epoch
-    container_started_epoch=$(date +%s)
+    local container_started_ms
+    container_started_ms=$(date +%s%3N)
     docker run -d \
         --name "$container_name" \
         --network "$DOCKER_NETWORK" \
@@ -331,7 +332,9 @@ run_one() {
     rm -f "$env_file"
 
     local app_url="http://${container_name}:8080"
-    local readiness_url="${app_url}${readiness_path}"
+    # Readiness is probed from the host via the published port for sub-second resolution.
+    # k6 and API calls still use the in-network app_url.
+    local host_readiness_url="http://localhost:${host_port}${readiness_path}"
     local api_base="${app_url}${base_path}"
 
     # ── 5. Wait for readiness ─────────────────────────────────────────────
@@ -340,8 +343,9 @@ run_one() {
     stack_timeout=$(stack_field "$stack_id" "readiness_timeout")
     local effective_timeout="${stack_timeout:-$READINESS_TIMEOUT}"
     local ready=0
-    wait_ready "$container_name" "$readiness_url" "$effective_timeout" && ready=1
+    wait_ready "$container_name" "$host_readiness_url" "$effective_timeout" && ready=1
     local container_ready_at=""
+    local startup_ms=""
     local startup_seconds=""
     if [[ $ready -eq 0 ]]; then
         warn "Container $container_name not ready — saving logs and skipping run"
@@ -351,7 +355,8 @@ run_one() {
         return 1
     fi
     container_ready_at=$(now_utc)
-    startup_seconds=$(( $(date +%s) - container_started_epoch ))
+    startup_ms=$(( $(date +%s%3N) - container_started_ms ))
+    startup_seconds="$(( startup_ms / 1000 )).$(printf '%03d' $(( startup_ms % 1000 )))"
 
     # ── 6. Reset pg stats + take before snapshot (after server is ready) ───
     bash "$PG_STATS" reset "$db_name"
@@ -453,6 +458,7 @@ run_one() {
         --arg suite_name "${SUITE_NAME:-}" \
         --arg container_started_at "$container_started_at" \
         --arg container_ready_at "$container_ready_at" \
+        --argjson startup_ms "${startup_ms:-null}" \
         --argjson startup_seconds "${startup_seconds:-null}" \
         --arg sampler_started_at "$sampler_started_at" \
         --arg sampler_stopped_at "$sampler_stopped_at" \
@@ -470,6 +476,7 @@ run_one() {
           timing: {
             container_started_at: $container_started_at,
             container_ready_at: $container_ready_at,
+            startup_ms: $startup_ms,
             startup_seconds: $startup_seconds,
             sampler_started_at: $sampler_started_at,
             sampler_stopped_at: $sampler_stopped_at,

@@ -17,7 +17,7 @@ mvn test                                 # tests only
 
 Requires JDK 25+ and Maven 3.8+.
 
-The optimized Docker image (`Dockerfile.optimized`, Temurin 25 JRE) runs with **G1GC** (`-XX:+UseG1GC`), chosen for the perf harness's `--cpus 2 --memory 512m` container limits.
+The optimized Docker image (`Dockerfile.optimized`, Temurin 25 JRE) runs with **G1GC** (`-XX:+UseG1GC`), chosen for the perf harness's `--cpus 2 --memory 512m` container limits. The heap is pinned with `-XX:InitialRAMPercentage=75.0 -XX:MaxRAMPercentage=75.0` so it does not resize during the measured window, and benchmark-only system properties disable SpringDoc and request logging (`-Dspringdoc.swagger-ui.enabled=false -Dspringdoc.api-docs.enabled=false -Dlogging.level.root=WARN`); `application.properties` is untouched, so the naive image keeps SpringDoc enabled. These flags are passed identically in the AOT training stage and the runtime `ENTRYPOINT`.
 
 It also uses the **Project Leyden AOT cache** (JEP 483, JDK 24+). A dedicated `training` build stage runs the app with `-XX:AOTMode=record -XX:AOTCacheOutput=app.aot` and `spring.datasource.hikari.initialization-fail-timeout=-1` so HikariCP does not block on an unavailable DB; SIGTERM after 10 s triggers a graceful JVM shutdown whose shutdown hooks record the class-loading profile and assemble the cache. The runtime stage copies `app.aot` and passes `-XX:AOTCache=app.aot` on startup; if the cache file is invalid the JVM falls back gracefully.
 

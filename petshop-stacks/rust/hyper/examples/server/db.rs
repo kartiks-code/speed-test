@@ -29,6 +29,15 @@ fn build_dsn() -> String {
     format!("postgresql://{user}:{password}@{host}:{port}/{db}")
 }
 
+/// Maximum pool size, read from `DB_POOL_MAX` (default 10 when unset or unparsable).
+fn pool_max_connections() -> u32 {
+    env::var("DB_POOL_MAX")
+        .ok()
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(10)
+}
+
 /// Create and return a Postgres connection pool.
 pub async fn create_pool() -> PgPool {
     // Load a .env file in the rust/ directory if present (optional, non-fatal).
@@ -39,7 +48,7 @@ pub async fn create_pool() -> PgPool {
     let dsn = build_dsn();
     PgPoolOptions::new()
         .min_connections(1)
-        .max_connections(10)
+        .max_connections(pool_max_connections())
         .connect(&dsn)
         .await
         .unwrap_or_else(|err| panic!("Failed to connect to PostgreSQL ({}): {}", dsn, err))
@@ -47,13 +56,15 @@ pub async fn create_pool() -> PgPool {
 
 #[cfg(test)]
 mod tests {
-    use super::build_dsn;
+    use super::{build_dsn, pool_max_connections};
     use std::env;
     use std::sync::Mutex;
 
-    /// All environment variables `build_dsn` consults. Tests clear these before
-    /// running so the host machine's environment cannot influence the result.
+    /// All environment variables `build_dsn` and `pool_max_connections` consult.
+    /// Tests clear these before running so the host machine's environment cannot
+    /// influence the result.
     const DSN_VARS: &[&str] = &[
+        "DB_POOL_MAX",
         "DATABASE_URL",
         "POSTGRES_HOST",
         "PGHOST",
@@ -178,6 +189,30 @@ mod tests {
                 );
             },
         );
+    }
+
+    #[test]
+    fn pool_max_defaults_to_ten() {
+        with_env(&[], || {
+            assert_eq!(pool_max_connections(), 10);
+        });
+    }
+
+    #[test]
+    fn pool_max_reads_env() {
+        with_env(&[("DB_POOL_MAX", "200")], || {
+            assert_eq!(pool_max_connections(), 200);
+        });
+    }
+
+    #[test]
+    fn pool_max_falls_back_on_invalid_values() {
+        with_env(&[("DB_POOL_MAX", "not-a-number")], || {
+            assert_eq!(pool_max_connections(), 10);
+        });
+        with_env(&[("DB_POOL_MAX", "0")], || {
+            assert_eq!(pool_max_connections(), 10);
+        });
     }
 
     #[test]

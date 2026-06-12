@@ -63,6 +63,15 @@ There is no generated code in this project. All files may be freely edited. When
 - Defaults: host `localhost`, port `5434`, db `elixir-phoenix`, user `myuser`, password `mypassword`
 - All overrideable via env vars: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
 - Full URL override: `DATABASE_URL=postgres://...`
+- `POOL_SIZE` sets the Postgrex pool size (default `10`, read in `config/runtime.exs`)
+
+### Benchmark (optimized variant) Tuning
+
+The optimized benchmark variant (`Dockerfile.optimized`, MIX_ENV=prod OTP release) bakes in:
+
+- `ENV POOL_SIZE=200` — queues up to 500 k6 VUs on 200 DB connections (Postgres `max_connections=500`)
+- `ENV ERL_FLAGS="+S 2:2 +sbwt none +sbwtdcpu none +sbwtdio none"` — `+S 2:2` matches the harness `--cpus 2` quota (the BEAM doesn't read cgroup CPU quotas); the `+sbwt*` flags disable scheduler busy-waiting, which wastes CPU in CPU-capped containers. The release boot script picks `ERL_FLAGS` up automatically.
+- `config/prod.exs` sets `config :logger, level: :warning` to skip per-request info logging. This is prod-only, so the naive variant (dev config) is unaffected.
 
 ### Port
 - Runs on port **8080** (set in `config/config.exs`)

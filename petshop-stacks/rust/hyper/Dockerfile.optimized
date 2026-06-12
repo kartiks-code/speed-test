@@ -9,6 +9,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 2: compile dependencies (cached layer), then the app
 FROM chef AS builder
+# Optimized-only release profile overrides (Cargo.toml stays stock for the naive
+# build). Must be set before `cargo chef cook` so both cook and build see the
+# same profile env — otherwise the dependency artifacts get rebuilt.
+ENV CARGO_PROFILE_RELEASE_LTO=thin CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
@@ -29,6 +33,10 @@ COPY --from=builder /app/target/release/examples/petstore-server-server \
      /usr/local/bin/petstore-server
 
 USER petstore
+
+# Larger sqlx pool: handles up to 500 k6 VUs via queueing, and stays under
+# Postgres max_connections=500.
+ENV DB_POOL_MAX=200
 
 EXPOSE 8080
 

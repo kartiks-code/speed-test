@@ -213,6 +213,7 @@ function loadRun(runDir) {
     k6_script: meta.k6_script || null,
     mix: meta.mix || null,
     suite: meta.suite || null,
+    startup_ms: timing?.startup_ms ?? (timing?.startup_seconds != null ? Math.round(timing.startup_seconds * 1000) : null),
     startup_seconds: timing?.startup_seconds ?? null,
     k6_rps: k6.k6_rps,
     k6_avg_ms: k6.k6_avg_ms,
@@ -244,6 +245,7 @@ function loadRun(runDir) {
       mix: summary.mix,
       suite: summary.suite,
       timing,
+      startup_ms: summary.startup_ms,
       startup_seconds: summary.startup_seconds,
     },
     k6: {

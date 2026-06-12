@@ -47,6 +47,14 @@ Default values when no env vars are set:
 - password: `mypassword`
 - database: `python-fastapi`
 
+Pool sizing is env-driven: `ASYNCPG_POOL_MIN_SIZE` (default `1`) and
+`ASYNCPG_POOL_MAX_SIZE` (default `10`). `Dockerfile.optimized` overrides
+`ASYNCPG_POOL_MAX_SIZE=100` and sets `WEB_CONCURRENCY=2` (uvicorn worker
+count, sized for the benchmark harness `--cpus 2` limit); the naive
+`Dockerfile` keeps the defaults. `requirements.txt` pins
+`uvicorn[standard]>=0.30,<0.36`, which bundles uvloop/httptools/websockets —
+don't re-add separate pins for those.
+
 Ensure the database and schema are applied before starting the server:
 
 ```bash
@@ -104,7 +112,7 @@ sharper assertion or confirm it is equivalent.
 The generated routers in `apis/` dispatch to subclasses of `BasePetApi`, `BaseStoreApi`, and `BaseUserApi`. The `pkgutil` loader in each router file auto-discovers all modules under `petstore.petstore.impl` and registers any subclass. To add a new implementation or replace the existing one, create a class that inherits from the appropriate base class in that package.
 
 The `db.py` module provides:
-- `get_pool()` — returns a shared `asyncpg.Pool`, creating it lazily on first call
+- `get_pool()` — returns a shared `asyncpg.Pool`, creating it lazily on first call; sizes come from `ASYNCPG_POOL_MIN_SIZE`/`ASYNCPG_POOL_MAX_SIZE` (defaults 1/10)
 - JSON/JSONB codecs are registered so JSON-type columns round-trip as Python objects
 
 ## Database Schema Notes

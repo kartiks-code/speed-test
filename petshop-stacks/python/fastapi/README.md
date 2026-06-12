@@ -45,6 +45,10 @@ Available environment variables (all optional; defaults match `database/.env`):
 | `POSTGRES_USER`   | `myuser`        | Database user                        |
 | `POSTGRES_PASSWORD` | `mypassword` | Database password                    |
 | `POSTGRES_DB`     | `python-fastapi`| Database name                        |
+| `ASYNCPG_POOL_MIN_SIZE` | `1`       | asyncpg pool minimum connections     |
+| `ASYNCPG_POOL_MAX_SIZE` | `10`      | asyncpg pool maximum connections     |
+
+`Dockerfile.optimized` also reads `WEB_CONCURRENCY` (default `2` in that image) for the uvicorn worker count, and sets `ASYNCPG_POOL_MAX_SIZE=100` (per worker).
 
 ## Installation & Usage
 

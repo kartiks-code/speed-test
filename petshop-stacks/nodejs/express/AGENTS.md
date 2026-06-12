@@ -43,6 +43,18 @@ set -a && source ../../../database/.env && set +a
 npm start
 ```
 
+### Tuning environment variables
+
+All optional; defaults preserve naive behavior. `Dockerfile.optimized` sets the tuned values (`WEB_CONCURRENCY=2 PG_POOL_MAX=100 EXPRESS_LEAN=true`, `NODE_ENV=production`) and starts via `node cluster.js`. The naive `Dockerfile` sets none of them and starts `node index.js`.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `WEB_CONCURRENCY` | `1` | `cluster.js` forks this many workers (each running `index.js`) and respawns dead ones; `1` runs the app in-process |
+| `PG_POOL_MAX` | unset (pg default `10`) | `max` for the `pg.Pool` in `db/pool.js`, per process |
+| `PG_POOL_IDLE_TIMEOUT_MS` | unset (pg default `10000`) | `idleTimeoutMillis` for the pool |
+| `EXPRESS_LEAN` | unset | `true` sets `app.set('etag', false)` and disables `x-powered-by` in `expressServer.js` |
+| `NODE_ENV` | unset | `production` makes `logger.js` use a single error-level Console transport instead of console + file transports |
+
 ## Code Structure
 
 ```
@@ -60,7 +72,8 @@ petshop-stacks/nodejs/express/
 │   └── userRepository.js     # user table CRUD + auth
 ├── expressServer.js          # Express + OpenAPI validator setup
 ├── config.js                 # port, paths
-└── index.js                  # entry point
+├── index.js                  # entry point
+└── cluster.js                # optional multi-process entry (WEB_CONCURRENCY)
 ```
 
 ## Conventions

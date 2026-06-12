@@ -180,3 +180,19 @@ export function PgCompareChart({ series }) {
     />
   );
 }
+
+export function StartupCompareChart({ series }) {
+  const filtered = series.filter((s) => s.run.meta.startup_ms != null);
+  if (!filtered.length) return null;
+  return (
+    <GroupedBarCard
+      title="Startup Time"
+      categories={[{ key: "startup_ms", label: "startup" }]}
+      series={filtered.map((s) => ({
+        ...s,
+        values: { startup_ms: s.run.meta.startup_ms },
+      }))}
+      unit="ms"
+    />
+  );
+}
