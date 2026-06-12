@@ -23,8 +23,29 @@ import {
   PgCompareChart,
 } from "../components/CompareCharts.jsx";
 import { CpuOverlayChart, RamOverlayChart } from "../components/TimeSeriesChart.jsx";
+import CompareMetricsTable from "../components/CompareMetricsTable.jsx";
+import InfoModal, { InfoButton } from "../components/InfoModal.jsx";
+import { SECTION_INFO } from "../lib/sectionInfo.js";
 
 const MAX_MANUAL_SERIES = 6;
+const COMPARE_VIEW_KEY = "compareViewMode";
+
+function loadCompareViewMode() {
+  try {
+    const v = localStorage.getItem(COMPARE_VIEW_KEY);
+    return v === "table" ? "table" : "chart";
+  } catch {
+    return "chart";
+  }
+}
+
+function saveCompareViewMode(mode) {
+  try {
+    localStorage.setItem(COMPARE_VIEW_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+}
 
 const MIX_BAR_OPS = [
   { key: "create", color: "#22c55e" },
@@ -212,6 +233,9 @@ export default function Compare() {
   const [suitePageAssignments, setSuitePageAssignments] = useState({});
   const [currentSuitePage, setCurrentSuitePage] = useState(1);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [viewMode, setViewMode] = useState(loadCompareViewMode);
+
+  const [infoSection, setInfoSection] = useState(null);
 
   const [selections, setSelections] = useState([
     { stackLabel: "", duration: "", variant: "", runId: "" },
@@ -345,17 +369,20 @@ export default function Compare() {
   const suitePageIndex = suitePages.findIndex((p) => p.pageNumber === currentSuitePage);
   const suiteNeedsPaging = suiteUniqueRuns.length > SUITE_PAGE_SIZE;
 
-  // Load detail JSON for any newly selected run
+  const runIdsToLoad = viewMode === "table" && suiteMode && suiteUniqueRuns.length
+    ? suiteUniqueRuns.map((r) => r.run_id)
+    : selections.map((s) => s.runId).filter(Boolean);
+
+  // Load detail JSON for selected runs (current chart page) or full suite in table view
   useEffect(() => {
-    for (const { runId } of selections) {
-      if (!runId) continue;
+    for (const runId of runIdsToLoad) {
       const force = refreshToken > 0 && runId === lastRunId;
       if (!force && runDetails[runId]) continue;
       loadRun(runId, { force })
         .then((r) => setRunDetails((prev) => ({ ...prev, [runId]: r })))
         .catch(() => {});
     }
-  }, [selections, refreshToken, lastRunId]);
+  }, [runIdsToLoad, refreshToken, lastRunId]);
 
   const updateSelection = (i, val) => {
     setSuiteMode(false);
@@ -373,30 +400,71 @@ export default function Compare() {
   if (loading) return <div className="loading">Loading index…</div>;
   if (error) return <div className="loading" style={{ color: "#ef4444" }}>Error: {error}</div>;
 
-  const labelledSeries = selections
-    .map((sel, i) => ({
-      index: i,
-      color: seriesColor(i),
-      run: sel.runId ? runDetails[sel.runId] : null,
-    }))
-    .filter((s) => s.run != null)
-    .map((s) => ({
-      ...s,
-      label: `${s.run.meta.label} (${s.run.meta.variant}, ${s.run.meta.duration})`,
-    }));
+  function buildLabelledSeries(items, runIdForItem) {
+    return items
+      .map((item, i) => {
+        const runId = runIdForItem(item);
+        const run = runId ? runDetails[runId] : null;
+        if (!run) return null;
+        return {
+          index: i,
+          color: seriesColor(i),
+          run,
+          label: `${run.meta.label} (${run.meta.variant}, ${run.meta.duration}, ${run.meta.vus ?? "?"} VU)`,
+        };
+      })
+      .filter(Boolean);
+  }
 
-  const hasSeries = labelledSeries.length >= 1;
+  const chartSeries = buildLabelledSeries(
+    selections.filter((s) => s.runId),
+    (sel) => sel.runId,
+  );
 
-  const cpuOverlaySeries = labelledSeries.map((s) => ({
+  const tableSeries = suiteMode && viewMode === "table"
+    ? buildLabelledSeries(suiteUniqueRuns, (r) => r.run_id)
+    : chartSeries;
+
+  const activeSeries = viewMode === "table" ? tableSeries : chartSeries;
+  const expectedSeriesCount = viewMode === "table" && suiteMode
+    ? suiteUniqueRuns.length
+    : selections.filter((s) => s.runId).length;
+  const stillLoadingSeries = expectedSeriesCount > 0 && activeSeries.length < expectedSeriesCount;
+  const hasSeries = activeSeries.length >= 1;
+
+  const cpuOverlaySeries = chartSeries.map((s) => ({
     label: s.label,
     color: s.color,
     data: s.run.timeseries || [],
   }));
-  const ramOverlaySeries = labelledSeries.map((s) => ({
+  const ramOverlaySeries = chartSeries.map((s) => ({
     label: s.label,
     color: s.color,
     data: s.run.timeseries || [],
   }));
+
+  const showSuitePaging = suiteMode && suiteNeedsPaging && viewMode === "chart";
+  const showViewToolbar = suiteMode
+    ? suiteUniqueRuns.length > 0
+    : selections.some((s) => s.runId);
+
+  function toggleViewMode() {
+    setViewMode((prev) => {
+      const next = prev === "chart" ? "table" : "chart";
+      saveCompareViewMode(next);
+      return next;
+    });
+  }
+
+  const viewToggleBtn = (
+    <button
+      type="button"
+      className="btn-secondary btn-sm"
+      onClick={toggleViewMode}
+    >
+      {viewMode === "chart" ? "Switch to table view" : "Switch to chart view"}
+    </button>
+  );
 
   return (
     <div>
@@ -419,9 +487,14 @@ export default function Compare() {
         {suiteMode && (
           <div className="suite-mode-badge">
             Suite view · {suiteUniqueRuns.length} run{suiteUniqueRuns.length !== 1 ? "s" : ""}
-            {suiteNeedsPaging && suitePages.length > 0 && (
+            {showSuitePaging && suitePages.length > 0 && (
               <span className="suite-page-indicator">
                 · Page {currentSuitePage} of {suitePages.length}
+              </span>
+            )}
+            {viewMode === "table" && suiteUniqueRuns.length > 0 && (
+              <span className="suite-page-indicator">
+                · Table: all {suiteUniqueRuns.length} runs
               </span>
             )}
             <button type="button" className="btn-link" onClick={clearSuite}>clear</button>
@@ -429,7 +502,7 @@ export default function Compare() {
         )}
       </div>
 
-      {suiteMode && suiteNeedsPaging && (
+      {showSuitePaging && (
         <div className="suite-page-nav">
           <button
             type="button"
@@ -467,6 +540,18 @@ export default function Compare() {
           >
             Change groups
           </button>
+          {viewToggleBtn}
+        </div>
+      )}
+
+      {showViewToolbar && !showSuitePaging && (
+        <div className="compare-view-toolbar">
+          {viewMode === "table" && suiteMode && (
+            <span className="compare-view-toolbar-hint">
+              Showing all {suiteUniqueRuns.length} runs
+            </span>
+          )}
+          {viewToggleBtn}
         </div>
       )}
 
@@ -511,11 +596,15 @@ export default function Compare() {
         </div>
       )}
 
-      {!hasSeries && (
+      {!hasSeries && !stillLoadingSeries && (
         <div className="empty-state">
           <div className="empty-state-icon">🔀</div>
           <div>Select runs above or search for a suite to compare.</div>
         </div>
+      )}
+
+      {stillLoadingSeries && !hasSeries && (
+        <div className="loading">Loading run data…</div>
       )}
 
       {showGroupModal && suiteMode && (
@@ -528,34 +617,78 @@ export default function Compare() {
         />
       )}
 
-      {hasSeries && (
+      {infoSection && (
+        <InfoModal
+          sectionInfo={SECTION_INFO[infoSection]}
+          onClose={() => setInfoSection(null)}
+        />
+      )}
+
+      {(hasSeries || stillLoadingSeries) && (
         <>
-          <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-            {labelledSeries.map((s) => (
-              <div key={s.label} className="compare-series-legend-item">
-                <div className="compare-series-legend-label">
-                  <span style={{ width: 12, height: 12, borderRadius: "50%", background: s.color, display: "inline-block", flexShrink: 0 }} />
-                  <span style={{ color: "#e2e8f0" }}>{s.label}</span>
-                </div>
-                <RunBriefSummary run={s.run.meta} compact />
+          {viewMode === "chart" && hasSeries && (
+            <>
+              <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+                {chartSeries.map((s) => (
+                  <div key={s.label} className="compare-series-legend-item">
+                    <div className="compare-series-legend-label">
+                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: s.color, display: "inline-block", flexShrink: 0 }} />
+                      <span style={{ color: "#e2e8f0" }}>{s.label}</span>
+                    </div>
+                    <RunBriefSummary run={s.run.meta} compact />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <div className="compare-charts">
-            <RpsCompareChart series={labelledSeries} />
-            <ErrorRateCompareChart series={labelledSeries} />
-            <LatencyCompareChart series={labelledSeries} />
-            <CpuCompareChart series={labelledSeries} />
-            <RamCompareChart series={labelledSeries} />
-            <PgCompareChart series={labelledSeries} />
-          </div>
+                <div className="compare-section">
+                <div className="compare-section-title">
+                  <span>Performance Statistics</span>
+                  <InfoButton onClick={() => setInfoSection("Performance Statistics")} label="Performance Statistics" />
+                </div>
+                <div className="compare-charts">
+                  <RpsCompareChart series={chartSeries} />
+                  <ErrorRateCompareChart series={chartSeries} />
+                  <LatencyCompareChart series={chartSeries} />
+                </div>
+              </div>
 
-          {cpuOverlaySeries.some((s) => s.data.length > 0) && (
-            <div className="compare-charts" style={{ marginTop: 20 }}>
-              <CpuOverlayChart series={cpuOverlaySeries} />
-              <RamOverlayChart series={ramOverlaySeries} />
-            </div>
+              <div className="compare-section">
+                <div className="compare-section-title">
+                  <span>Resource Usage Metrics</span>
+                  <InfoButton onClick={() => setInfoSection("Resource Usage Metrics")} label="Resource Usage Metrics" />
+                </div>
+                <div className="compare-charts">
+                  <RamCompareChart series={chartSeries} />
+                  <CpuCompareChart series={chartSeries} />
+                </div>
+                {cpuOverlaySeries.some((s) => s.data.length > 0) && (
+                  <div className="compare-charts" style={{ marginTop: 12 }}>
+                    <RamOverlayChart series={ramOverlaySeries} />
+                    <CpuOverlayChart series={cpuOverlaySeries} />
+                  </div>
+                )}
+              </div>
+
+              <div className="compare-section">
+                <div className="compare-section-title">
+                  <span>DB Metrics</span>
+                  <InfoButton onClick={() => setInfoSection("DB Metrics")} label="DB Metrics" />
+                </div>
+                <div className="compare-charts">
+                  <PgCompareChart series={chartSeries} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {viewMode === "table" && (
+            stillLoadingSeries ? (
+              <div className="loading">
+                Loading run data… ({activeSeries.length}/{expectedSeriesCount})
+              </div>
+            ) : (
+              <CompareMetricsTable series={tableSeries} />
+            )
           )}
         </>
       )}

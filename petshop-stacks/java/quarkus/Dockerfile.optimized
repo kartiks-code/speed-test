@@ -1,0 +1,54 @@
+# Stage 1: build the uber-jar
+# Uses eclipse-temurin:25-jdk; Foojay toolchain resolver falls back to this JDK.
+FROM eclipse-temurin:25-jdk AS build
+
+# Install Gradle wrapper dependencies first for layer caching
+WORKDIR /app
+COPY gradlew .
+COPY gradle ./gradle
+COPY build.gradle settings.gradle gradle.properties ./
+RUN ./gradlew dependencies -q 2>/dev/null || true
+
+COPY src ./src
+RUN ./gradlew build -x test -q && \
+    cp build/*-runner.jar app-runner.jar
+
+# Stage 2: AppCDS training — archive loaded classes for faster startup.
+# The app is started with jdbc.initial-size=0 / min-size=0 so Agroal creates no
+# connections (no DB available during Docker build).  After 10 s SIGTERM triggers
+# a graceful shutdown; -XX:ArchiveClassesAtExit writes the class archive on exit.
+FROM eclipse-temurin:25-jre-alpine AS training
+WORKDIR /app
+COPY --from=build /app/app-runner.jar app.jar
+RUN java \
+  -XX:MaxRAMPercentage=75.0 \
+  -XX:+UseG1GC \
+  -Djava.security.egd=file:/dev/./urandom \
+  -XX:ArchiveClassesAtExit=app.jsa \
+  -Dquarkus.datasource.jdbc.initial-size=0 \
+  -Dquarkus.datasource.jdbc.min-size=0 \
+  -jar app.jar & \
+  APP_PID=$! && sleep 10 && kill -TERM "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
+
+# Stage 3: minimal JRE runtime on Alpine
+FROM eclipse-temurin:25-jre-alpine AS runtime
+
+RUN addgroup -S quarkus && adduser -S quarkus -G quarkus
+
+WORKDIR /app
+
+COPY --from=build /app/app-runner.jar app.jar
+COPY --from=training /app/app.jsa ./
+
+USER quarkus
+
+EXPOSE 8080
+
+# Quarkus uber-jar with AppCDS for faster class loading.  G1GC with
+# container-aware heap sizing; urandom avoids SecureRandom blocking.
+ENTRYPOINT ["java", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-XX:+UseG1GC", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-XX:SharedArchiveFile=app.jsa", \
+  "-jar", "app.jar"]

@@ -21,18 +21,18 @@ spec/petstore-31.yaml  ──(openapi-generator-cli, see COMMANDS.md)──►  
 | Project | Language / Framework | Directory | Database | Default base path |
 |---|---|---|---|---|
 | **Database** | PostgreSQL 17 (Docker Compose) | `database/` | — (hosts all DBs) | — |
-| **Go — Gin** | Go + Gin + `database/sql`/pgx | `go/go-gin-server/` | `go-gin-server` | `/api/v3` |
-| **Java — Spring Boot** | Java 25 + Spring Boot 3.5 + `JdbcTemplate` | `java/springboot/` | `java-springboot` | `/api/v3` |
-| **Java — Helidon** | Java 21 + Helidon MP 4 (JAX-RS/CDI) + JDBC | `java/helidon/` | `java-helidon` | `/api/v3` |
-| **Java — Quarkus** | Java 25 + Quarkus 3.36 (Gradle) + JDBC | `java/quarkus/` | `java-quarkus` | `/api/v3` |
-| **Node.js — Express** | Node.js + Express + `pg` | `nodejs/` | `nodejs-express` | `/` (e.g. `/pet`) |
-| **Python — FastAPI** | Python + FastAPI + `asyncpg` | `python/` | `python-fastapi` | `/` (e.g. `/pet`) |
-| **Rust** | Rust + hyper + `sqlx` | `rust/` | `rust-server` | `/api/v3` |
-| **C# — ASP.NET Core** | C# + ASP.NET Core 8 + Npgsql/Dapper | `csharp/aspnetcore/` | `csharp-aspnetcore` | `/api/v3` |
-| **PHP — Laravel** | PHP + Laravel + PDO pgsql | `php/laravel/` | `php-laravel` | `/api/v3` |
-| **Ruby — Rails** | Ruby + Rails + `pg` gem | `ruby/rails/` | `ruby-rails` | `/api/v3` |
-| **Kotlin — Ktor** | Kotlin + Ktor + JDBC/HikariCP | `kotlin/ktor/` | `kotlin-ktor` | `/api/v3` |
-| **Elixir — Phoenix** | Elixir + Phoenix + Postgrex (hand-written) | `elixir/phoenix/` | `elixir-phoenix` | `/api/v3` |
+| **Go — Gin** | Go + Gin + `database/sql`/pgx | `petshop-stacks/go/gin/` | `go-gin-server` | `/api/v3` |
+| **Java — Spring Boot** | Java 25 + Spring Boot 3.5 + `JdbcTemplate` | `petshop-stacks/java/springboot/` | `java-springboot` | `/api/v3` |
+| **Java — Helidon** | Java 21 + Helidon MP 4 (JAX-RS/CDI) + JDBC | `petshop-stacks/java/helidon/` | `java-helidon` | `/api/v3` |
+| **Java — Quarkus** | Java 25 + Quarkus 3.36 (Gradle) + JDBC | `petshop-stacks/java/quarkus/` | `java-quarkus` | `/api/v3` |
+| **Node.js — Express** | Node.js + Express + `pg` | `petshop-stacks/nodejs/express/` | `nodejs-express` | `/` (e.g. `/pet`) |
+| **Python — FastAPI** | Python + FastAPI + `asyncpg` | `petshop-stacks/python/fastapi/` | `python-fastapi` | `/` (e.g. `/pet`) |
+| **Rust** | Rust + hyper + `sqlx` | `petshop-stacks/rust/hyper/` | `rust-server` | `/api/v3` |
+| **C# — ASP.NET Core** | C# + ASP.NET Core 8 + Npgsql/Dapper | `petshop-stacks/csharp/aspnetcore/` | `csharp-aspnetcore` | `/api/v3` |
+| **PHP — Laravel** | PHP + Laravel + PDO pgsql | `petshop-stacks/php/laravel/` | `php-laravel` | `/api/v3` |
+| **Ruby — Rails** | Ruby + Rails + `pg` gem | `petshop-stacks/ruby/rails/` | `ruby-rails` | `/api/v3` |
+| **Kotlin — Ktor** | Kotlin + Ktor + JDBC/HikariCP | `petshop-stacks/kotlin/ktor/` | `kotlin-ktor` | `/api/v3` |
+| **Elixir — Phoenix** | Elixir + Phoenix + Postgrex (hand-written) | `petshop-stacks/elixir/phoenix/` | `elixir-phoenix` | `/api/v3` |
 
 Every server listens on **port 8080**. Each project has its own `README.md` (setup/run) and `AGENTS.md` (implementation conventions).
 
@@ -64,40 +64,40 @@ Each server connects to its own database in that shared instance. Pick a project
 
 ```bash
 # Go
-cd go/go-gin-server && go run main.go
+cd petshop-stacks/go/gin && go run main.go
 
 # Java Spring Boot
-cd java/springboot && mvn spring-boot:run
+cd petshop-stacks/java/springboot && mvn spring-boot:run
 
 # Java Helidon
-cd java/helidon && mvn package && java -jar target/petstore-helidon.jar
+cd petshop-stacks/java/helidon && mvn package && java -jar target/petstore-helidon.jar
 
 # Java Quarkus
-cd java/quarkus && ./gradlew build && java -jar build/*-runner.jar
+cd petshop-stacks/java/quarkus && ./gradlew build && java -jar build/*-runner.jar
 
 # Node.js
-cd nodejs && npm install && npm start
+cd petshop-stacks/nodejs/express && npm install && npm start
 
 # Python
-cd python && pip install -r requirements.txt && PYTHONPATH=src uvicorn petstore.main:app --port 8080
+cd petshop-stacks/python/fastapi && pip install -r requirements.txt && PYTHONPATH=src uvicorn petstore.main:app --port 8080
 
 # Rust
-cd rust && cargo run --example petstore-server-server
+cd petshop-stacks/rust/hyper && cargo run --example petstore-server-server
 
 # C# ASP.NET Core
-cd csharp/aspnetcore && dotnet run --project src/Petstore
+cd petshop-stacks/csharp/aspnetcore && dotnet run --project src/Petstore
 
 # PHP Laravel
-cd php/laravel && composer install && php artisan serve --port=8080
+cd petshop-stacks/php/laravel && composer install && php artisan serve --port=8080
 
 # Ruby Rails
-cd ruby/rails && bundle install && bundle exec rails server -p 8080
+cd petshop-stacks/ruby/rails && bundle install && bundle exec rails server -p 8080
 
 # Kotlin Ktor
-cd kotlin/ktor && ./gradlew run
+cd petshop-stacks/kotlin/ktor && ./gradlew run
 
 # Elixir Phoenix
-cd elixir/phoenix && mix deps.get && mix phx.server
+cd petshop-stacks/elixir/phoenix && mix deps.get && mix phx.server
 ```
 
 Run one server at a time (or change ports), since they all default to `:8080`.

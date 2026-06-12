@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { getQueue, cancelJob, subscribeEvents } from "../lib/api.js";
+import { getQueue, cancelJob, clearCompletedJobs, subscribeEvents } from "../lib/api.js";
 
 const STATUS_COLORS = {
   pending:  "#f59e0b",
@@ -56,6 +56,17 @@ function MixBar({ mix }) {
 }
 
 const COMPLETED_STATUSES = new Set(["done", "failed", "canceled"]);
+
+const POLL_MS = 2000;
+
+/** Merge polled/SSE queue rows; preserve in-memory logs when payload omits them. */
+function mergeQueueJobs(prev, next) {
+  const prevMap = Object.fromEntries(prev.map((j) => [j.id, j]));
+  return next.map((j) => ({
+    ...j,
+    log: j.log?.length ? j.log : (prevMap[j.id]?.log ?? []),
+  }));
+}
 
 function partitionJobs(jobs) {
   const running = jobs.find((j) => j.status === "running");
@@ -144,7 +155,7 @@ function LogPanel({ job }) {
   if (!job) {
     return (
       <div className="log-panel log-panel--empty">
-        <span>Select a job to see its log</span>
+        <span>No active job — log will appear automatically when a run starts</span>
       </div>
     );
   }
@@ -154,6 +165,9 @@ function LogPanel({ job }) {
       <div className="log-panel-header">
         <span className="log-panel-title">
           Log — {job.stackId} {job.variant}
+          {job.status === "running" && (
+            <span className="log-auto-badge" title="Auto-tracking the running job">live</span>
+          )}
         </span>
         <label className="log-autoscroll">
           <input
@@ -178,46 +192,67 @@ function LogPanel({ job }) {
 
 export default function Queue() {
   const [jobs, setJobs] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
+  // pinnedId: explicitly clicked by user; null = auto-track the running job
+  const [pinnedId, setPinnedId] = useState(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
 
-  // Load initial queue
+  // Load initial queue + poll while this page is open (SSE can miss updates)
   useEffect(() => {
-    getQueue()
-      .then(setJobs)
-      .catch((e) => setError(e.message));
+    let cancelled = false;
+
+    const refresh = () =>
+      getQueue()
+        .then((next) => {
+          if (!cancelled) setJobs((prev) => mergeQueueJobs(prev, next));
+        })
+        .catch((e) => {
+          if (!cancelled) setError(e.message);
+        });
+
+    refresh();
+    const timer = setInterval(refresh, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
 
-  // SSE subscription
+  // SSE subscription for instant updates and live log lines
   useEffect(() => {
-    const unsub = subscribeEvents((event) => {
-      if (event.type === "queue_update") {
-        // Merge logs from current in-memory jobs (SSE queue_update omits log array
-        // to keep payloads small; logs arrive via separate "log" events)
-        setJobs((prev) => {
-          const prevMap = Object.fromEntries(prev.map((j) => [j.id, j]));
-          return (event.queue ?? []).map((j) => ({
-            ...j,
-            log: prevMap[j.id]?.log ?? j.log ?? [],
-          }));
-        });
-        setConnected(true);
-      } else if (event.type === "log") {
-        setJobs((prev) =>
-          prev.map((j) =>
-            j.id === event.jobId
-              ? { ...j, log: [...(j.log ?? []), event.line] }
-              : j
-          )
-        );
+    const unsub = subscribeEvents(
+      (event) => {
+        if (event.type === "queue_update") {
+          setJobs((prev) => mergeQueueJobs(prev, event.queue ?? []));
+        } else if (event.type === "log") {
+          setJobs((prev) =>
+            prev.map((j) =>
+              j.id === event.jobId
+                ? { ...j, log: [...(j.log ?? []), event.line] }
+                : j
+            )
+          );
+        }
+      },
+      {
+        onOpen: () => setConnected(true),
+        onClose: () => setConnected(false),
       }
-    });
+    );
 
     return unsub;
   }, []);
+
+  // Auto-unpin when the pinned job finishes so the next running job takes over
+  useEffect(() => {
+    if (!pinnedId) return;
+    const pinnedJob = jobsRef.current.find((j) => j.id === pinnedId);
+    if (!pinnedJob || COMPLETED_STATUSES.has(pinnedJob.status)) {
+      setPinnedId(null);
+    }
+  }, [jobs, pinnedId]);
 
   const handleCancel = useCallback(async (id) => {
     try {
@@ -227,14 +262,30 @@ export default function Queue() {
     }
   }, []);
 
-  const handleSelect = useCallback((id) => {
-    setSelectedId((prev) => (prev === id ? null : id));
+  const handleClearCompleted = useCallback(async () => {
+    try {
+      await clearCompletedJobs();
+      setPinnedId((prev) => {
+        const job = jobsRef.current.find((j) => j.id === prev);
+        return job && COMPLETED_STATUSES.has(job.status) ? null : prev;
+      });
+    } catch (e) {
+      setError(e.message);
+    }
   }, []);
 
-  const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
+  // Toggle pin: clicking the already-pinned job unpins (back to auto-track)
+  const handleSelect = useCallback((id) => {
+    setPinnedId((prev) => (prev === id ? null : id));
+  }, []);
+
   const { activeQueue, completed } = partitionJobs(jobs);
   const pending = activeQueue.filter((j) => j.status === "pending").length;
   const running = activeQueue.find((j) => j.status === "running");
+
+  // Derive selected job: pinned takes priority, otherwise auto-follow running
+  const selectedId = pinnedId ?? running?.id ?? null;
+  const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
 
   return (
     <div className="queue-page">
@@ -243,7 +294,7 @@ export default function Queue() {
         <div className="queue-status-row">
           <div
             className={`conn-dot ${connected ? "conn-dot--on" : "conn-dot--off"}`}
-            title={connected ? "Live (SSE connected)" : "Not connected"}
+            title={connected ? "Live (SSE connected)" : "Polling (SSE reconnecting)"}
           />
           <span className="queue-stats">
             {running ? (
@@ -292,7 +343,16 @@ export default function Queue() {
 
             {completed.length > 0 && (
               <section className="job-section">
-                <h3 className="job-section-title">Completed runs</h3>
+                <div className="job-section-header">
+                  <h3 className="job-section-title">Completed runs</h3>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={handleClearCompleted}
+                  >
+                    Clear completed
+                  </button>
+                </div>
                 <div className="job-list">
                   {completed.map((job) => (
                     <JobRow

@@ -19,6 +19,10 @@
  * setup() seeds a shared pool of 50 pets so that Read/Update/Delete have
  * live targets immediately. Each VU also maintains its own per-iteration
  * pet pool to avoid empty-pool starvation.
+ *
+ * When SKIP_SETUP=1 (set by run.sh after it pre-seeds pets via curl), setup()
+ * returns immediately so k6 only runs the configured load duration and the
+ * resource sampler is not inflated by sequential seed requests.
  */
 
 import http from "k6/http";
@@ -83,6 +87,10 @@ function randomItem(arr) {
 const SEED_SIZE = 50;
 
 export function setup() {
+  if (__ENV.SKIP_SETUP === "1") {
+    return { seedIds: [] };
+  }
+
   const ids = [];
   for (let i = 0; i < SEED_SIZE; i++) {
     const payload = JSON.stringify({

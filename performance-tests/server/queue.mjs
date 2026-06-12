@@ -48,6 +48,11 @@ export function getQueue() {
   return queue.map(j => ({ ...j }));
 }
 
+/** Queue state for SSE broadcasts — omits log lines to keep payloads small. */
+export function getQueueSummary() {
+  return queue.map(({ log: _log, ...rest }) => rest);
+}
+
 export function enqueue(params) {
   const job = {
     id: String(jobIdCounter++),
@@ -71,7 +76,7 @@ export function enqueue(params) {
     log: [],
   };
   queue.push(job);
-  broadcast("queue_update", { queue: getQueue() });
+  broadcast("queue_update", { queue: getQueueSummary() });
   setImmediate(processNext);
   return job;
 }
@@ -98,8 +103,25 @@ export function cancelJob(id) {
   const job = queue[idx];
   if (job.status !== "pending") return false;
   job.status = "canceled";
-  broadcast("queue_update", { queue: getQueue() });
+  broadcast("queue_update", { queue: getQueueSummary() });
   return true;
+}
+
+const COMPLETED_STATUSES = new Set(["done", "failed", "canceled"]);
+
+/** Remove all finished jobs from the in-memory queue (does not delete result dirs). */
+export function clearCompletedJobs() {
+  const before = queue.length;
+  for (let i = queue.length - 1; i >= 0; i--) {
+    if (COMPLETED_STATUSES.has(queue[i].status)) {
+      queue.splice(i, 1);
+    }
+  }
+  const removed = before - queue.length;
+  if (removed > 0) {
+    broadcast("queue_update", { queue: getQueueSummary() });
+  }
+  return removed;
 }
 
 // ── processor ─────────────────────────────────────────────────────────────────
@@ -112,7 +134,7 @@ async function processNext() {
   running = true;
   job.status = "running";
   job.startedAt = new Date().toISOString();
-  broadcast("queue_update", { queue: getQueue() });
+  broadcast("queue_update", { queue: getQueueSummary() });
 
   try {
     await runJob(job);
@@ -123,7 +145,7 @@ async function processNext() {
   }
 
   job.finishedAt = new Date().toISOString();
-  broadcast("queue_update", { queue: getQueue() });
+  broadcast("queue_update", { queue: getQueueSummary() });
 
   // Regenerate viewer data for the new result
   try {

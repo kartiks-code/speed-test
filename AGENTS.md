@@ -9,18 +9,18 @@ This repository implements the **same OpenAPI Petstore API in multiple languages
 | `spec/` | OpenAPI specs; `petstore-31.yaml` is the active contract | — |
 | `COMMANDS.md` | OpenAPI Generator command for each target | — |
 | `database/` | Shared PostgreSQL (Docker Compose), schema, create/apply scripts | `database/AGENTS.md` |
-| `go/go-gin-server/` | Go + Gin server | `go/go-gin-server/AGENTS.md` |
-| `java/springboot/` | Java 25 + Spring Boot 3.5 server | `java/springboot/AGENTS.md` |
-| `java/helidon/` | Java 21 + Helidon MP 4 server | `java/helidon/AGENTS.md` |
-| `java/quarkus/` | Java 25 + Quarkus 3.36.x server (Gradle) | `java/quarkus/AGENTS.md` |
-| `nodejs/` | Node.js + Express server | `nodejs/AGENTS.md` |
-| `python/` | Python + FastAPI server | `python/AGENTS.md` |
-| `rust/` | Rust + hyper server | `rust/AGENTS.md` |
-| `csharp/aspnetcore/` | C# + ASP.NET Core 8 server | `csharp/aspnetcore/AGENTS.md` |
-| `php/laravel/` | PHP + Laravel server | `php/laravel/AGENTS.md` |
-| `ruby/rails/` | Ruby + Rails server | `ruby/rails/AGENTS.md` |
-| `kotlin/ktor/` | Kotlin + Ktor server | `kotlin/ktor/AGENTS.md` |
-| `elixir/phoenix/` | Elixir + Phoenix server (hand-written) | `elixir/phoenix/AGENTS.md` |
+| `petshop-stacks/go/gin/` | Go + Gin server | `petshop-stacks/go/gin/AGENTS.md` |
+| `petshop-stacks/java/springboot/` | Java 25 + Spring Boot 3.5 server | `petshop-stacks/java/springboot/AGENTS.md` |
+| `petshop-stacks/java/helidon/` | Java 21 + Helidon MP 4 server | `petshop-stacks/java/helidon/AGENTS.md` |
+| `petshop-stacks/java/quarkus/` | Java 25 + Quarkus 3.36.x server (Gradle) | `petshop-stacks/java/quarkus/AGENTS.md` |
+| `petshop-stacks/nodejs/express/` | Node.js + Express server | `petshop-stacks/nodejs/express/AGENTS.md` |
+| `petshop-stacks/python/fastapi/` | Python + FastAPI server | `petshop-stacks/python/fastapi/AGENTS.md` |
+| `petshop-stacks/rust/hyper/` | Rust + hyper server | `petshop-stacks/rust/hyper/AGENTS.md` |
+| `petshop-stacks/csharp/aspnetcore/` | C# + ASP.NET Core 8 server | `petshop-stacks/csharp/aspnetcore/AGENTS.md` |
+| `petshop-stacks/php/laravel/` | PHP + Laravel server | `petshop-stacks/php/laravel/AGENTS.md` |
+| `petshop-stacks/ruby/rails/` | Ruby + Rails server | `petshop-stacks/ruby/rails/AGENTS.md` |
+| `petshop-stacks/kotlin/ktor/` | Kotlin + Ktor server | `petshop-stacks/kotlin/ktor/AGENTS.md` |
+| `petshop-stacks/elixir/phoenix/` | Elixir + Phoenix server (hand-written) | `petshop-stacks/elixir/phoenix/AGENTS.md` |
 | `performance-tests/` | Language-agnostic Docker benchmark harness; runs all 12 server stacks (`naive` + `optimized` variants), collects RPS/latency/CPU/RAM/Postgres stats; includes a results viewer + control server | `performance-tests/AGENTS.md` |
 
 ## The Core Workflow
@@ -38,18 +38,18 @@ Always run commands from the project's own directory. The database must be up fi
 
 | Project | Build | Test | Run (port 8080) |
 |---|---|---|---|
-| `go/go-gin-server` | `go build ./...` | `go test ./...` | `go run main.go` |
-| `java/springboot` | `mvn package` | `mvn test` | `mvn spring-boot:run` |
-| `java/helidon` | `mvn package` | `mvn test` | `java -jar target/petstore-helidon.jar` |
-| `java/quarkus` | `./gradlew build` | `./gradlew test` | `java -jar build/*-runner.jar` |
-| `nodejs` | `npm install` | `npm test` | `npm start` |
-| `python` | `pip install -r requirements.txt` | `PYTHONPATH=src pytest tests` | `PYTHONPATH=src uvicorn petstore.main:app --port 8080` |
-| `rust` | `cargo build` | `cargo test` | `cargo run --example petstore-server-server` |
-| `csharp/aspnetcore` | `dotnet build` | `dotnet test` | `dotnet run --project src/Petstore` |
-| `php/laravel` | `composer install` | `php artisan test` | `php artisan serve --port=8080` |
-| `ruby/rails` | `bundle install` | `bundle exec rspec` | `bundle exec rails server -p 8080` |
-| `kotlin/ktor` | `./gradlew build` | `./gradlew test` | `./gradlew run` |
-| `elixir/phoenix` | `mix deps.get && mix compile` | `mix test` | `mix phx.server` |
+| `petshop-stacks/go/gin` | `go build ./...` | `go test ./...` | `go run main.go` |
+| `petshop-stacks/java/springboot` | `mvn package` | `mvn test` | `mvn spring-boot:run` |
+| `petshop-stacks/java/helidon` | `mvn package` | `mvn test` | `java -jar target/petstore-helidon.jar` |
+| `petshop-stacks/java/quarkus` | `./gradlew build` | `./gradlew test` | `java -jar build/*-runner.jar` |
+| `petshop-stacks/nodejs/express` | `npm install` | `npm test` | `npm start` |
+| `petshop-stacks/python/fastapi` | `pip install -r requirements.txt` | `PYTHONPATH=src pytest tests` | `PYTHONPATH=src uvicorn petstore.main:app --port 8080` |
+| `petshop-stacks/rust/hyper` | `cargo build` | `cargo test` | `cargo run --example petstore-server-server` |
+| `petshop-stacks/csharp/aspnetcore` | `dotnet build` | `dotnet test` | `dotnet run --project src/Petstore` |
+| `petshop-stacks/php/laravel` | `composer install` | `php artisan test` | `php artisan serve --port=8080` |
+| `petshop-stacks/ruby/rails` | `bundle install` | `bundle exec rspec` | `bundle exec rails server -p 8080` |
+| `petshop-stacks/kotlin/ktor` | `./gradlew build` | `./gradlew test` | `./gradlew run` |
+| `petshop-stacks/elixir/phoenix` | `mix deps.get && mix compile` | `mix test` | `mix phx.server` |
 
 ## Mutation Testing
 
@@ -57,25 +57,25 @@ Every project (except Rust which has limited test coverage) has a mutation testi
 
 | Project | Tool | Command |
 |---|---|---|
-| `java/springboot` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
-| `java/helidon` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
-| `java/quarkus` | [PIT](https://pitest.org) | `./gradlew pitest` |
-| `nodejs` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (after `npm install`) |
-| `python` | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
-| `go/go-gin-server` | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
-| `rust` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
-| `csharp/aspnetcore` | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet stryker` |
-| `php/laravel` | [Infection](https://infection.github.io) | `./vendor/bin/infection` |
-| `ruby/rails` | [mutant](https://github.com/mbj/mutant) | `bundle exec mutant run` |
-| `kotlin/ktor` | [PIT](https://pitest.org) | `./gradlew pitest` |
-| `elixir/phoenix` | [muzak](https://github.com/devonestes/muzak) | `mix muzak` (best-effort; see AGENTS.md) |
+| `petshop-stacks/java/springboot` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| `petshop-stacks/java/helidon` | [PIT](https://pitest.org) | `mvn test-compile org.pitest:pitest-maven:mutationCoverage` |
+| `petshop-stacks/java/quarkus` | [PIT](https://pitest.org) | `./gradlew pitest` |
+| `petshop-stacks/nodejs/express` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (after `npm install`) |
+| `petshop-stacks/python/fastapi` | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
+| `petshop-stacks/go/gin` | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
+| `petshop-stacks/rust/hyper` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
+| `petshop-stacks/csharp/aspnetcore` | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet stryker` |
+| `petshop-stacks/php/laravel` | [Infection](https://infection.github.io) | `./vendor/bin/infection` |
+| `petshop-stacks/ruby/rails` | [mutant](https://github.com/mbj/mutant) | `bundle exec mutant run` |
+| `petshop-stacks/kotlin/ktor` | [PIT](https://pitest.org) | `./gradlew pitest` |
+| `petshop-stacks/elixir/phoenix` | [muzak](https://github.com/devonestes/muzak) | `mix muzak` (best-effort; see AGENTS.md) |
 
 Each project's `AGENTS.md` has the install step and a description of what is mutated vs. excluded.
 
 ### Notes for cross-project tasks (e.g. "build test cases for all projects")
 
-- **Existing test coverage is uneven.** Go (`go/go-gin-server/go/*_test.go`), Helidon (`src/test/...`), Python (`python/tests/`), and Spring Boot have some tests; **Node.js has no test runner wired** (only `start`/`prestart` scripts), and Rust tests are minimal. Treat adding tests as net-new work where missing.
-- **Follow each language's idioms** rather than forcing one pattern: Go `testing`, JUnit 5 (Maven Surefire), `pytest`, Rust `#[test]`/`cargo test`, and Mocha+Chai for Node (a `test` script must be added to `nodejs/package.json`).
+- **Existing test coverage is uneven.** Go (`petshop-stacks/go/gin/go/*_test.go`), Helidon (`src/test/...`), Python (`petshop-stacks/python/fastapi/tests/`), and Spring Boot have some tests; **Node.js has no test runner wired** (only `start`/`prestart` scripts), and Rust tests are minimal. Treat adding tests as net-new work where missing.
+- **Follow each language's idioms** rather than forcing one pattern: Go `testing`, JUnit 5 (Maven Surefire), `pytest`, Rust `#[test]`/`cargo test`, and Mocha+Chai for Node (a `test` script must be added to `petshop-stacks/nodejs/express/package.json`).
 - **DB-dependent tests need a running database.** Prefer the per-project pattern: e.g. Go gates integration tests behind `TEST_DATABASE_DSN`; mirror that opt-in approach so unit tests stay runnable without Postgres.
 - **Keep behavior identical across stacks** — the same request should produce the same result everywhere. When writing test cases, the shared conventions below are the contract to assert against.
 
@@ -116,7 +116,7 @@ All implementations must behave identically. When changing or testing any server
 - All 19 Petstore operations are implemented in every server.
 - `category`, `photo_urls`, `tags` are JSON columns; `category` is stored as a JSON string.
 - `pet.status` (`pet_status`) and `order.status` (`order_status`) are PostgreSQL enum types; cast on write, read as `::text`.
-- Server-assigned IDs use `MAX(id) + 1` when the request omits one; writes upsert via `INSERT … ON CONFLICT`.
+- Server-assigned IDs use `SELECT nextval('<table>_id_seq')` (e.g. `pet_id_seq`, `order_id_seq`, `user_id_seq`, `pet_photo_id_seq`) when the request omits one; writes upsert via `INSERT … ON CONFLICT`. The sequences are defined in `database/postgresql_schema.sql`, are `OWNED BY` their column so `TRUNCATE … RESTART IDENTITY` resets them, and are seeded beyond existing rows on schema re-apply.
 - Tables used: `pet`, `"order"`, `"user"` (the last two quoted because they are reserved words), and `pet_photo` (binary image storage).
 - `uploadFile` verifies the pet exists, then persists the raw request body to the `pet_photo` table (`content` is a `BYTEA` column) keyed by `pet_id`; the response message reports the number of bytes stored. `logoutUser` is a stateless no-op.
 

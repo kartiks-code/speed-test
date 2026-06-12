@@ -151,6 +151,14 @@ def main():
 
         print(f"[sampler] Writing to {args.output}, sampling {args.containers} every {args.interval}s", flush=True)
 
+        # Prime precpu_stats with a throwaway poll so the first written sample
+        # reflects ~1s of CPU time, not the entire container lifetime since boot.
+        for name in args.containers:
+            try:
+                docker_get(f"/containers/{name}/stats?stream=false", args.socket)
+            except Exception as exc:
+                print(f"[sampler] WARN: warmup poll failed for {name}: {exc}", file=sys.stderr, flush=True)
+
         while not stop:
             ts = datetime.now(timezone.utc).isoformat()
             for name in args.containers:

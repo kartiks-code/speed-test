@@ -162,6 +162,10 @@ truncate_db_tables() {
         || warn "Could not truncate tables in '$db_name' (may not exist yet — continuing)"
 }
 
+now_utc() {
+    date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
 wait_ready() {
     local container="$1"
     local readiness_url="$2"
@@ -181,6 +185,35 @@ wait_ready() {
     done
     warn "Container $container did not become ready within ${timeout}s"
     return 1
+}
+
+# Pre-seed pets for crud-mix.js before k6 so setup() CPU/time is not counted
+# in docker-stats.csv (run.sh starts the sampler immediately before k6).
+preseed_pets_for_mix() {
+    local api_base="$1"
+    local auth_header="${2:-}"
+    local count="${K6_SEED_SIZE:-50}"
+
+    log "Pre-seeding $count pets for crud-mix at $api_base ..."
+    local curl_auth=()
+    if [[ -n "$auth_header" ]]; then
+        curl_auth+=(-H "Authorization: ${auth_header}")
+    fi
+
+    local i
+    for ((i = 1; i <= count; i++)); do
+        docker run --rm --network "$DOCKER_NETWORK" \
+            --entrypoint curl \
+            curlimages/curl:latest \
+            -sf --max-time 5 \
+            -X POST "${api_base}/pet" \
+            -H "Content-Type: application/json" \
+            -H "api_key: benchmark" \
+            "${curl_auth[@]}" \
+            -d "{\"name\":\"seed-${i}\",\"status\":\"available\",\"photoUrls\":[\"http://example.com/photo.jpg\"],\"category\":{\"id\":1,\"name\":\"Dogs\"},\"tags\":[{\"id\":1,\"name\":\"k6-mix\"}]}" \
+            &>/dev/null || true
+    done
+    log "Pre-seed complete"
 }
 
 # ── single run ───────────────────────────────────────────────────────────────
@@ -243,14 +276,10 @@ run_one() {
     # ── 2. Ensure pg_stat_statements extension ───────────────────────────
     bash "$PG_STATS" enable-extension
 
-    # ── 3. Truncate tables + reset pg stats ──────────────────────────────
+    # ── 3. Truncate tables (clean slate before container starts) ─────────
     truncate_db_tables "$db_name"
-    bash "$PG_STATS" reset "$db_name"
 
-    # ── 4. Take before snapshot ──────────────────────────────────────────
-    bash "$PG_STATS" snapshot "$db_name" "$results_dir/pg-before.json"
-
-    # ── 5. Start app container ───────────────────────────────────────────
+    # ── 4. Start app container ───────────────────────────────────────────
     local env_file
     env_file=$(write_env_file "$stack_id")
 
@@ -285,6 +314,10 @@ run_one() {
     host_port=$(stack_field "$stack_id" "$host_port_field")
 
     log "Starting container $container_name (host port ${host_port} → container 8080) ..."
+    local container_started_at
+    container_started_at=$(now_utc)
+    local container_started_epoch
+    container_started_epoch=$(date +%s)
     docker run -d \
         --name "$container_name" \
         --network "$DOCKER_NETWORK" \
@@ -299,14 +332,17 @@ run_one() {
 
     local app_url="http://${container_name}:8080"
     local readiness_url="${app_url}${readiness_path}"
+    local api_base="${app_url}${base_path}"
 
-    # ── 6. Wait for readiness ─────────────────────────────────────────────
+    # ── 5. Wait for readiness ─────────────────────────────────────────────
     # Per-stack timeout from stacks.json, falling back to READINESS_TIMEOUT env var
     local stack_timeout
     stack_timeout=$(stack_field "$stack_id" "readiness_timeout")
     local effective_timeout="${stack_timeout:-$READINESS_TIMEOUT}"
     local ready=0
     wait_ready "$container_name" "$readiness_url" "$effective_timeout" && ready=1
+    local container_ready_at=""
+    local startup_seconds=""
     if [[ $ready -eq 0 ]]; then
         warn "Container $container_name not ready — saving logs and skipping run"
         docker logs "$container_name" > "$results_dir/container.log" 2>&1 || true
@@ -314,8 +350,28 @@ run_one() {
         echo '{"error": "container_not_ready"}' > "$results_dir/k6-summary.json"
         return 1
     fi
+    container_ready_at=$(now_utc)
+    startup_seconds=$(( $(date +%s) - container_started_epoch ))
+
+    # ── 6. Reset pg stats + take before snapshot (after server is ready) ───
+    bash "$PG_STATS" reset "$db_name"
+    bash "$PG_STATS" snapshot "$db_name" "$results_dir/pg-before.json"
+
+    # Optional per-stack auth header (e.g. Python needs a Bearer token)
+    local auth_header
+    auth_header=$(stack_field "$stack_id" "auth_header")
+
+    # Pre-seed pets outside k6 when using crud-mix so resource sampling covers
+    # only the configured load duration, not the sequential setup() requests.
+    local k6_skip_setup=""
+    if [[ "$K6_SCRIPT_NAME" == "crud-mix.js" ]]; then
+        preseed_pets_for_mix "$api_base" "$auth_header"
+        k6_skip_setup="1"
+    fi
 
     # ── 7. Start sampler ─────────────────────────────────────────────────
+    local sampler_started_at
+    sampler_started_at=$(now_utc)
     log "Starting sampler..."
     python3 "$SAMPLER" \
         --containers "$container_name" "$POSTGRES_CONTAINER" \
@@ -328,10 +384,8 @@ run_one() {
     touch "$results_dir/k6-summary.json"
     chmod 666 "$results_dir/k6-summary.json"
 
-    # Optional per-stack auth header (e.g. Python needs a Bearer token)
-    local auth_header
-    auth_header=$(stack_field "$stack_id" "auth_header")
-
+    local k6_started_at
+    k6_started_at=$(now_utc)
     log "Running k6 (VUS=$VUS DURATION=$DURATION SCRIPT=$K6_SCRIPT_NAME) ..."
     # Allow non-zero exit (threshold violations) so a single stack's issues don't abort the suite
     docker run --rm \
@@ -343,6 +397,7 @@ run_one() {
         -e "VUS=${VUS}" \
         -e "DURATION=${DURATION}" \
         ${auth_header:+-e "AUTH_HEADER=${auth_header}"} \
+        ${k6_skip_setup:+-e "SKIP_SETUP=${k6_skip_setup}"} \
         -e "MIX_CREATE=${MIX_CREATE}" \
         -e "MIX_READ=${MIX_READ}" \
         -e "MIX_UPDATE=${MIX_UPDATE}" \
@@ -351,9 +406,13 @@ run_one() {
             --summary-export /results/k6-summary.json \
             "/scripts/${K6_SCRIPT_NAME}" \
         2>&1 | tee "$results_dir/k6.log" || true
+    local k6_finished_at
+    k6_finished_at=$(now_utc)
     log "k6 complete"
 
     # ── 9. Stop sampler ──────────────────────────────────────────────────
+    local sampler_stopped_at
+    sampler_stopped_at=$(now_utc)
     if kill -0 "$SAMPLER_PID" 2>/dev/null; then
         kill "$SAMPLER_PID"
         wait "$SAMPLER_PID" 2>/dev/null || true
@@ -392,6 +451,13 @@ run_one() {
         --argjson mix_update "$MIX_UPDATE" \
         --argjson mix_delete "$MIX_DELETE" \
         --arg suite_name "${SUITE_NAME:-}" \
+        --arg container_started_at "$container_started_at" \
+        --arg container_ready_at "$container_ready_at" \
+        --argjson startup_seconds "${startup_seconds:-null}" \
+        --arg sampler_started_at "$sampler_started_at" \
+        --arg sampler_stopped_at "$sampler_stopped_at" \
+        --arg k6_started_at "$k6_started_at" \
+        --arg k6_finished_at "$k6_finished_at" \
         '{run_id: $run_id, stack_id: $stack_id, label: $label, variant: $variant,
           dockerfile: $dockerfile, db_name: $db_name,
           host_port: $host_port,
@@ -400,7 +466,16 @@ run_one() {
           timestamp: $ts,
           k6_script: $k6_script,
           mix: {create: $mix_create, read: $mix_read, update: $mix_update, delete: $mix_delete},
-          suite: (if $suite_name == "" then null else $suite_name end)}' \
+          suite: (if $suite_name == "" then null else $suite_name end),
+          timing: {
+            container_started_at: $container_started_at,
+            container_ready_at: $container_ready_at,
+            startup_seconds: $startup_seconds,
+            sampler_started_at: $sampler_started_at,
+            sampler_stopped_at: $sampler_stopped_at,
+            k6_started_at: $k6_started_at,
+            k6_finished_at: $k6_finished_at
+          }}' \
         > "$results_dir/run-meta.json"
 
     log "Results saved to $results_dir"

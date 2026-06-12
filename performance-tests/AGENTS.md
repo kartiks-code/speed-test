@@ -16,6 +16,7 @@ See `README.md` for operator-facing usage (prerequisites, quick start, environme
 | `k6/crud-mix.js` | Weighted operation mix script; driven by `MIX_CREATE/READ/UPDATE/DELETE` env vars; seeds a pet pool in `setup()` then picks one operation per VU iteration by normalized weight |
 | `report.py` | Reads all `results/*/` directories → writes `results/comparison.csv` and `results/comparison.md` |
 | `results/` | One directory per run, named `<stack>-<variant>-<timestamp>`; gitignored |
+| `results/archive/` | Zipped copies of deleted runs (`<runId>.zip`); created automatically on delete; gitignored |
 | `server/` | Local Node control server (Express); exposes queue, run-management, and SSE APIs; spawns `run.sh` |
 | `server/queue.mjs` | In-memory FIFO queue; `enqueue` / `enqueueBatch`; spawns `run.sh` with `K6_SCRIPT_NAME=crud-mix.js` and `SUITE_NAME` |
 | `server/runs.mjs` | Suite assignment, run deletion, suite dissolve/delete (mutates `run-meta.json` and result dirs on disk) |
@@ -31,15 +32,16 @@ See `README.md` for operator-facing usage (prerequisites, quick start, environme
 4. `docker build` the stack's Dockerfile (skipped if `NO_BUILD=1`); stream output to `build.log`.
 5. Write a temp env-file from `stacks.json`'s `env` block (skip `PLACEHOLDER_*` values); inject secrets from caller's environment (`LARAVEL_APP_KEY`, `RAILS_SECRET_KEY_BASE`, `PHOENIX_SECRET_KEY_BASE`).
 6. `docker run -d` the image on the `database_default` network with CPU/memory limits and the env-file; apply `entrypoint_override` / `cmd_override` if present in `stacks.json`.
-7. Poll the readiness URL (`http://<container>:8080<readiness_path>`) via `curlimages/curl` on the same network until HTTP 200 or timeout.
-8. Reset Postgres stats and take `pg-before.json` snapshot via `pg-stats.sh`.
-9. Start `sampler.py` in the background.
-10. Run k6 (`grafana/k6:latest`) on the same network, mounting `k6/${K6_SCRIPT_NAME}` and the results directory; pass `BASE_URL`, `BASE_PATH`, `VUS`, `DURATION`, `AUTH_HEADER` (if set), and `MIX_CREATE/READ/UPDATE/DELETE`. Exit code is non-fatal (`|| true`).
-11. Kill `sampler.py`.
-12. Take `pg-after.json` snapshot and compute `pg-delta.json`.
-13. Save `container.log` from `docker logs`.
-14. `docker rm -f` the app container.
-15. Write `run-meta.json` with stack id, label, variant, `dockerfile`, `db_name`, `host_port`, limits, timestamp, `k6_script`, `mix` object, and optional `suite` (from `SUITE_NAME` env).
+7. Poll the readiness URL (`http://<container>:8080<readiness_path>`) via `curlimages/curl` on the same network until HTTP 200 or timeout; record `timing.startup_seconds` (container start → ready).
+8. Reset Postgres stats and take `pg-before.json` snapshot via `pg-stats.sh` (after readiness, so startup DB activity is excluded from pg deltas).
+9. For `crud-mix.js` only: pre-seed 50 pets via curl, then pass `SKIP_SETUP=1` to k6 so the sampler is not inflated by sequential setup requests.
+10. Start `sampler.py` in the background (does a throwaway warmup poll first so the first CSV row is not a multi-second CPU spike from container boot).
+11. Run k6 (`grafana/k6:latest`) on the same network, mounting `k6/${K6_SCRIPT_NAME}` and the results directory; pass `BASE_URL`, `BASE_PATH`, `VUS`, `DURATION`, `AUTH_HEADER` (if set), and `MIX_CREATE/READ/UPDATE/DELETE`. Exit code is non-fatal (`|| true`). Record `timing.k6_started_at` / `timing.k6_finished_at`.
+12. Kill `sampler.py`.
+13. Take `pg-after.json` snapshot and compute `pg-delta.json`.
+14. Save `container.log` from `docker logs`.
+15. `docker rm -f` the app container.
+16. Write `run-meta.json` with stack id, label, variant, `dockerfile`, `db_name`, `host_port`, limits, timestamp, `k6_script`, `mix` object, optional `suite` (from `SUITE_NAME` env), and `timing` (startup + k6/sampler window timestamps). `build-data.mjs` and `report.py` filter `docker-stats.csv` to the k6 window when `timing` is present.
 
 ### k6 script selection
 
@@ -142,7 +144,7 @@ The `predev`/`prebuild` scripts call `scripts/build-data.mjs`, which scans `../r
 
 Pages: **Single Run** (`/`), **Compare** (`/compare`), **Manage Runs** (`/manage`), **Run Tests** (`/run`), **Queue** (`/queue`).
 
-On **Compare**, suites with more than 6 stack×variant combos are paginated (6 charts per page). Custom page assignments persist in browser `localStorage` via **Change groups**.
+On **Compare**, suites with more than 6 stack×variant combos are paginated (6 charts per page) in **chart view**. Custom page assignments persist in browser `localStorage` via **Change groups**. **Table view** shows all suite runs in one sortable metrics table (no page limit); view mode persists in `localStorage` (`compareViewMode`).
 
 **Manage Runs** filters by suite/stack/duration/variant/VUs/time range, supports multi-select, retroactive suite naming, run deletion, and suite dissolve/delete (requires control server for mutations).
 
@@ -166,7 +168,7 @@ Key behaviours:
 - `POST /api/queue` accepts either a single `{ stackId, variant, ... }` or a batch `{ suiteName, stackIds, variants, ... }`.
 - Each job spawns `run.sh <stackId> <variant>` with `K6_SCRIPT_NAME=crud-mix.js`, mix weights, optional `DOCKERFILE_OVERRIDE`, and optional `SUITE_NAME`.
 - stdout/stderr are broadcast as SSE `log` events; queue state changes emit `queue_update`.
-- Run management (`runs.mjs`): assign-suite, delete runs, dissolve/delete suites — each calls `refreshViewerAndBroadcast()`.
+- Run management (`runs.mjs`): assign-suite, delete runs, dissolve/delete suites — each calls `refreshViewerAndBroadcast()`. Delete operations zip the run folder into `results/archive/<runId>.zip` before removing it (falls back to plain delete if `zip` is unavailable).
 - On job completion or run mutation, `build-data.mjs` runs automatically, then a `data_updated` SSE event is broadcast so Single Run and Compare pages reload without a manual refresh.
 - The server is local-only (`127.0.0.1`), no authentication.
 - `CONTROL_PORT` env var overrides the default port `5179`.
@@ -184,13 +186,15 @@ These are in place; do not revert them.
 
 **JVM stacks — readiness timeout.** Spring Boot, Helidon, Quarkus, Ktor, and Phoenix take 2–3 minutes to build and start. All five have `"readiness_timeout": 120` in `stacks.json`.
 
+**Virtual-thread stacks — large DB pools.** Quarkus (`@RunOnVirtualThread`), Helidon (Loom-based WebServer), and Spring Boot (`spring.threads.virtual.enabled`) run requests on virtual threads, so their connection pools are sized large (200) rather than capped like a platform-thread pool. A small pool both bottlenecks concurrency and, for Quarkus + Agroal under `--cpus 2`, *deadlocks* (connection acquisition pins the few carrier threads). To support these large pools, `database/docker-compose.yml` raises Postgres `max_connections` to 500. Pool sizes are overridable per stack via env (`QUARKUS_DATASOURCE_JDBC_MAX_SIZE` is set to `200` in `stacks.json`; Helidon/Spring Boot default to 200 in their config). Keep each ≥ the benchmark VU count.
+
 **k6 — uploadImage path.** The spec operation is `uploadFile` but the route is `/pet/{petId}/uploadImage`. `crud.js` uses `/uploadImage`.
 
 **k6 — threshold exit code.** k6 exits non-zero when thresholds are violated. `run.sh` appends `|| true` so a single stack's threshold failure does not abort the suite.
 
 **k6 — summary file permissions.** k6's Docker image runs as non-root and cannot create files in mounted host volumes. `run.sh` does `touch + chmod 666` on `k6-summary.json` before starting k6.
 
-**Delete concurrency 404s.** Multiple VUs race on `MAX(id)+1` ID assignment and may attempt to delete the same row. A small percentage of delete calls returning 404 is expected at the default VU count; it is benchmark data, not a harness bug. Stacks that do a pre-existence check before deleting are more susceptible; idempotent deletes (delete directly and ignore rows-affected) eliminate the race.
+**Delete concurrency 404s.** All stacks now use Postgres sequences (`nextval`) for server-assigned IDs, eliminating the old `MAX(id)+1` collision race. A small percentage of delete calls returning 404 can still occur when two VUs happen to update the same pet and then both try to delete it; this is benchmark data, not a harness bug. Stacks with idempotent deletes (delete directly without a pre-existence check) keep this rate near zero.
 
 **stacks.json `build_context` paths.** Paths are relative to the repo root, not to `performance-tests/`. Use `"go/go-gin-server"`, not `"../go/go-gin-server"`.
 

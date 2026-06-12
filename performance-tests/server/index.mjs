@@ -5,6 +5,7 @@
  *   GET  /api/stacks       — stack list with discovered variants
  *   GET  /api/queue        — current job queue
  *   POST /api/queue        — enqueue a new run
+ *   DELETE /api/queue/completed — remove finished jobs from the queue UI
  *   DELETE /api/queue/:id  — cancel a pending job
  *   POST /api/runs/assign-suite — assign suite label to existing runs
  *   DELETE /api/runs       — delete completed run directories
@@ -17,10 +18,11 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
-  getQueue, enqueue, enqueueBatch, cancelJob,
+  getQueue, getQueueSummary, enqueue, enqueueBatch, cancelJob, clearCompletedJobs,
   addSseClient, removeSseClient,
 } from "./queue.mjs";
 import { assignSuite, deleteRuns, dissolveSuite, deleteSuiteRuns } from "./runs.mjs";
+import { refreshViewerAndBroadcast } from "./dataRefresh.mjs";
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const PERF_DIR   = path.resolve(__dirname, "..");
@@ -112,6 +114,11 @@ app.post("/api/queue", (req, res) => {
   res.status(201).json(job);
 });
 
+app.delete("/api/queue/completed", (req, res) => {
+  const removed = clearCompletedJobs();
+  res.json({ ok: true, removed });
+});
+
 app.delete("/api/queue/:id", (req, res) => {
   const ok = cancelJob(req.params.id);
   if (!ok) return res.status(404).json({ error: "Job not found or not cancellable" });
@@ -163,7 +170,7 @@ app.get("/api/events", (req, res) => {
   res.flushHeaders();
 
   // Send initial queue snapshot
-  res.write(`data: ${JSON.stringify({ type: "queue_update", queue: getQueue() })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: "queue_update", queue: getQueueSummary() })}\n\n`);
 
   addSseClient(res);
 
@@ -182,3 +189,21 @@ app.listen(PORT, "127.0.0.1", () => {
   console.log(`[server] Perf-test control server listening on http://127.0.0.1:${PORT}`);
   console.log(`[server] CORS enabled for all origins (local-only, no auth)`);
 });
+
+// ── Periodic viewer refresh ───────────────────────────────────────────────────
+// Re-scans results/ every 15 s. Because build-data.mjs only includes
+// directories that exist on disk, any run whose folder has been removed
+// (externally or via archive) is automatically dropped from the listing.
+
+let periodicRefreshRunning = false;
+setInterval(async () => {
+  if (periodicRefreshRunning) return;
+  periodicRefreshRunning = true;
+  try {
+    await refreshViewerAndBroadcast();
+  } catch (err) {
+    console.error(`[server] Periodic refresh failed: ${err.message}`);
+  } finally {
+    periodicRefreshRunning = false;
+  }
+}, 15_000);

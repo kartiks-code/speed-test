@@ -251,10 +251,10 @@ Each run creates a directory at `results/<stack>-<variant>-<timestamp>/`:
 
 | File | Contents |
 |---|---|
-| `run-meta.json` | Stack id, label, variant, `dockerfile`, `db_name`, `host_port`, VUs, duration, CPU/memory limits, timestamp, `k6_script`, `mix` weights, optional `suite` |
+| `run-meta.json` | Stack id, label, variant, `dockerfile`, `db_name`, `host_port`, VUs, duration, CPU/memory limits, timestamp, `k6_script`, `mix` weights, optional `suite`, and `timing` (`startup_seconds`, k6/sampler window timestamps) |
 | `build.log` | Full `docker build` output |
-| `docker-stats.csv` | 1-second-interval CPU %, RAM (MiB), net I/O, block I/O for the app container and the Postgres container, for the full duration of the k6 run |
-| `pg-before.json` | Snapshot of `pg_stat_database`, `pg_stat_io`, and top-50 `pg_stat_statements` rows (by total exec time) taken **before** k6 starts |
+| `docker-stats.csv` | 1-second-interval CPU %, RAM (MiB), net I/O, block I/O for the app container and the Postgres container while k6 runs (after server readiness; `crud-mix` pet seeding happens before the sampler starts) |
+| `pg-before.json` | Snapshot of `pg_stat_database`, `pg_stat_io`, and top-50 `pg_stat_statements` rows (by total exec time) taken **after** the server is ready and **before** k6 starts |
 | `pg-after.json` | Same snapshot taken **after** k6 finishes |
 | `pg-delta.json` | Field-by-field difference between before and after |
 | `k6-summary.json` | k6 `--summary-export` output: RPS, latency (avg/p50/p90/p95/p99/max), error rate, request counts, per-check results |

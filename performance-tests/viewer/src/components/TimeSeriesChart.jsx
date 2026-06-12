@@ -24,7 +24,7 @@ export function CpuTimeSeriesChart({ timeseries }) {
   if (!timeseries?.length) return null;
   return (
     <div className="chart-card">
-      <div className="chart-title">CPU Usage Over Run</div>
+      <div className="chart-title">CPU Usage During k6 Load Test</div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={timeseries} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#2e3347" />
@@ -42,7 +42,7 @@ export function RamTimeSeriesChart({ timeseries }) {
   if (!timeseries?.length) return null;
   return (
     <div className="chart-card">
-      <div className="chart-title">RAM Usage Over Run</div>
+      <div className="chart-title">RAM Usage During k6 Load Test</div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={timeseries} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#2e3347" />

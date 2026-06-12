@@ -73,7 +73,17 @@ def parse_k6_summary(path: Path) -> dict:
 
 # ── docker stats CSV parsing ───────────────────────────────────────────────────
 
-def parse_docker_stats(path: Path, app_container: str) -> dict:
+def _in_k6_window(ts: str, timing: dict | None) -> bool:
+    if not timing:
+        return True
+    start = timing.get("k6_started_at")
+    end = timing.get("k6_finished_at")
+    if not start or not end or not ts:
+        return True
+    return start <= ts <= end
+
+
+def parse_docker_stats(path: Path, app_container: str, timing: dict | None = None) -> dict:
     """Summarise per-second docker stats CSV for the app container."""
     cpu_vals = []
     mem_vals = []
@@ -87,6 +97,8 @@ def parse_docker_stats(path: Path, app_container: str) -> dict:
             reader = csv.DictReader(f)
             for row in reader:
                 if row.get("container", "").strip() != app_container:
+                    continue
+                if not _in_k6_window(row.get("timestamp", ""), timing):
                     continue
                 try:
                     cpu_vals.append(float(row["cpu_percent"]))
@@ -168,9 +180,12 @@ def load_run(run_dir: Path) -> dict | None:
         "timestamp":   meta.get("timestamp"),
     }
 
+    timing = meta.get("timing")
+
     row.update(parse_k6_summary(run_dir / "k6-summary.json"))
-    row.update(parse_docker_stats(run_dir / "docker-stats.csv", app_container))
+    row.update(parse_docker_stats(run_dir / "docker-stats.csv", app_container, timing))
     row.update(parse_pg_delta(run_dir / "pg-delta.json"))
+    row["startup_seconds"] = (timing or {}).get("startup_seconds")
 
     return row
 
@@ -179,7 +194,7 @@ def load_run(run_dir: Path) -> dict | None:
 
 COLUMNS = [
     "run_id", "stack", "variant", "timestamp",
-    "vus", "duration", "app_cpus", "app_memory",
+    "vus", "duration", "app_cpus", "app_memory", "startup_seconds",
     # k6
     "k6_rps", "k6_avg_ms", "k6_p50_ms", "k6_p90_ms", "k6_p95_ms", "k6_p99_ms",
     "k6_max_ms", "k6_error_rate", "k6_total_requests",

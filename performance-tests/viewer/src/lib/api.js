@@ -86,6 +86,14 @@ export async function cancelJob(id) {
 }
 
 /**
+ * Remove all finished jobs from the queue (done, failed, canceled).
+ * Does not delete result directories on disk.
+ */
+export async function clearCompletedJobs() {
+  return apiFetch("/queue/completed", { method: "DELETE" });
+}
+
+/**
  * Assign a suite name to existing runs.
  * @param {{ runIds: string[], suiteName: string }} params
  */
@@ -142,12 +150,40 @@ export async function pingServer() {
 /**
  * Subscribe to the SSE event stream.
  * @param {(event: {type: string, [key: string]: any}) => void} onMessage
+ * @param {{ onOpen?: () => void, onClose?: () => void }} [options]
  * @returns {() => void} unsubscribe function
  */
-export function subscribeEvents(onMessage) {
-  const es = new EventSource(`${BASE}/events`);
-  es.onmessage = (e) => {
-    try { onMessage(JSON.parse(e.data)); } catch (_) {}
+export function subscribeEvents(onMessage, options = {}) {
+  const { onOpen, onClose } = options;
+  let es;
+  let closed = false;
+  let reconnectTimer;
+  let reconnectDelay = 1000;
+
+  function connect() {
+    es = new EventSource(`${BASE}/events`);
+    es.onopen = () => {
+      reconnectDelay = 1000;
+      onOpen?.();
+    };
+    es.onmessage = (e) => {
+      try { onMessage(JSON.parse(e.data)); } catch (_) {}
+    };
+    es.onerror = () => {
+      onClose?.();
+      es.close();
+      if (!closed) {
+        reconnectTimer = setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 15000);
+      }
+    };
+  }
+
+  connect();
+
+  return () => {
+    closed = true;
+    clearTimeout(reconnectTimer);
+    es?.close();
   };
-  return () => es.close();
 }

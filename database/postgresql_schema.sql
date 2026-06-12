@@ -173,6 +173,34 @@ CREATE UNIQUE INDEX IF NOT EXISTS order_id_unique_idx ON "order" ("id");
 CREATE UNIQUE INDEX IF NOT EXISTS user_username_unique_idx ON "user" (username);
 
 --
+-- ID SEQUENCES
+-- Collision-free server-side ID generation; replaces the racy MAX(id)+1
+-- pattern used by most stacks.  OWNED BY their column so DROP TABLE and
+-- TRUNCATE … RESTART IDENTITY cascade correctly between benchmark runs.
+--
+CREATE SEQUENCE IF NOT EXISTS pet_id_seq;
+CREATE SEQUENCE IF NOT EXISTS order_id_seq;
+CREATE SEQUENCE IF NOT EXISTS user_id_seq;
+CREATE SEQUENCE IF NOT EXISTS pet_photo_id_seq;
+
+ALTER SEQUENCE pet_id_seq      OWNED BY pet.id;
+ALTER SEQUENCE order_id_seq    OWNED BY "order".id;
+ALTER SEQUENCE user_id_seq     OWNED BY "user".id;
+ALTER SEQUENCE pet_photo_id_seq OWNED BY pet_photo.id;
+
+-- Set column defaults so TRUNCATE … RESTART IDENTITY resets each sequence.
+ALTER TABLE pet       ALTER COLUMN "id" SET DEFAULT nextval('pet_id_seq');
+ALTER TABLE "order"   ALTER COLUMN "id" SET DEFAULT nextval('order_id_seq');
+ALTER TABLE "user"    ALTER COLUMN "id" SET DEFAULT nextval('user_id_seq');
+ALTER TABLE pet_photo ALTER COLUMN "id" SET DEFAULT nextval('pet_photo_id_seq');
+
+-- Seed sequences beyond any pre-existing rows so re-applying is safe.
+SELECT setval('pet_id_seq',       GREATEST((SELECT COALESCE(MAX(id), 0) + 1 FROM pet),       1), false);
+SELECT setval('order_id_seq',     GREATEST((SELECT COALESCE(MAX(id), 0) + 1 FROM "order"),   1), false);
+SELECT setval('user_id_seq',      GREATEST((SELECT COALESCE(MAX(id), 0) + 1 FROM "user"),    1), false);
+SELECT setval('pet_photo_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) + 1 FROM pet_photo), 1), false);
+
+--
 -- PRIMARY KEY CONSTRAINTS
 -- These blocks add keys for databases created before the primary keys were
 -- added to the generated CREATE TABLE statements above.

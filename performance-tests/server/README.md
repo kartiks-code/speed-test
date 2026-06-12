@@ -31,6 +31,7 @@ npm run dev:all
 | `GET` | `/api/stacks` | All stacks with discovered Dockerfile variants |
 | `GET` | `/api/queue` | Current job queue (all statuses) |
 | `POST` | `/api/queue` | Enqueue a new run |
+| `DELETE` | `/api/queue/completed` | Remove finished jobs from the queue (done, failed, canceled); does not delete result dirs |
 | `DELETE` | `/api/queue/:id` | Cancel a pending job |
 | `POST` | `/api/runs/assign-suite` | Assign a suite name to existing runs |
 | `DELETE` | `/api/runs` | Delete completed run result directories |
@@ -98,7 +99,7 @@ Returns `{ action, suiteName, count|deleted, runIds }`. Regenerates viewer data 
 
 ### SSE event types
 
-- `queue_update` — full queue state array; emitted on any status change
+- `queue_update` — queue state array (job metadata only; logs omitted); emitted on any status change
 - `log` — `{ jobId, line }` — one stdout/stderr line from `run.sh`
 - `data_updated` — `{ runId }` — emitted after `build-data.mjs` finishes; the viewer reloads `public/data/` automatically
 

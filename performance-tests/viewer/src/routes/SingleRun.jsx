@@ -199,6 +199,9 @@ export default function SingleRun() {
             <span className="badge"><strong>CPUs</strong> {run.meta.app_cpus ?? "—"}</span>
             <span className="badge"><strong>Memory</strong> {run.meta.app_memory || "—"}</span>
             <span className="badge"><strong>Timestamp</strong> {run.meta.timestamp}</span>
+            {run.meta.startup_seconds != null && (
+              <span className="badge"><strong>Startup</strong> {run.meta.startup_seconds}s</span>
+            )}
             {run.meta.suite && (
               <span className="badge"><strong>Suite</strong> {run.meta.suite}</span>
             )}

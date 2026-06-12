@@ -60,7 +60,9 @@ Pick a stack, duration, and specific run. Displays:
 
 Select up to 6 stack/run combinations manually (stack → duration → **variant** → timestamp), or search for a **suite** to compare all runs from a benchmark batch.
 
-When a suite has more than 6 stack×variant combos, results are split into pages of 6. Use **Prev/Next** or numbered page tabs to navigate. **Change groups** opens a modal where you assign each combo to a page; the layout is saved in browser localStorage and reused whenever you load that suite again.
+When a suite has more than 6 stack×variant combos, results are split into pages of 6 for **chart view**. Use **Prev/Next** or numbered page tabs to navigate. **Change groups** opens a modal where you assign each combo to a page; the layout is saved in browser localStorage and reused whenever you load that suite again.
+
+**Switch to table view** shows all suite runs in one sortable metrics table (click column headers to sort) — no 6-run page limit. Toggle back to **chart view** to restore paginated bar/line charts.
 
 Each row shows a brief summary (VUs, seconds, CRUD mix) for the selected run. Each series gets a distinct color. Grouped bar and line-overlay charts for RPS, error rate, latency percentiles, CPU, RAM, and Postgres counters.
 
@@ -95,6 +97,7 @@ Live queue view:
 - Status badges (Pending / Running / Done / Failed / Canceled)
 - Running job pulses with an animated border
 - Click any job to show its log in the side panel
+- Queue list auto-refreshes every 2s (plus SSE for instant status/log updates)
 - Log panel with auto-scroll toggle streams `run.sh` stdout/stderr in real time via SSE
 - Cancel buttons for pending jobs
 - "View results →" deep-link on completed jobs (opens Single Run for that run)

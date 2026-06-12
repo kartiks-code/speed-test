@@ -2,7 +2,7 @@
   {
     "id": "go",
     "label": "Go (Gin)",
-    "build_context": "go/go-gin-server",
+    "build_context": "petshop-stacks/go/gin",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "go-gin-server",
@@ -22,7 +22,7 @@
   {
     "id": "springboot",
     "label": "Java (Spring Boot)",
-    "build_context": "java/springboot",
+    "build_context": "petshop-stacks/java/springboot",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "java-springboot",
@@ -42,7 +42,7 @@
   {
     "id": "helidon",
     "label": "Java (Helidon)",
-    "build_context": "java/helidon",
+    "build_context": "petshop-stacks/java/helidon",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "java-helidon",
@@ -62,7 +62,7 @@
   {
     "id": "quarkus",
     "label": "Java (Quarkus)",
-    "build_context": "java/quarkus",
+    "build_context": "petshop-stacks/java/quarkus",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "java-quarkus",
@@ -76,13 +76,14 @@
       "POSTGRES_PORT": "5432",
       "POSTGRES_USER": "myuser",
       "POSTGRES_PASSWORD": "mypassword",
-      "POSTGRES_DB": "java-quarkus"
+      "POSTGRES_DB": "java-quarkus",
+      "QUARKUS_DATASOURCE_JDBC_MAX_SIZE": "200"
     }
   },
   {
     "id": "nodejs",
     "label": "Node.js (Express)",
-    "build_context": "nodejs",
+    "build_context": "petshop-stacks/nodejs/express",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "nodejs-express",
@@ -101,7 +102,7 @@
   {
     "id": "python",
     "label": "Python (FastAPI)",
-    "build_context": "python",
+    "build_context": "petshop-stacks/python/fastapi",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "python-fastapi",
@@ -121,7 +122,7 @@
   {
     "id": "rust",
     "label": "Rust (hyper)",
-    "build_context": "rust",
+    "build_context": "petshop-stacks/rust/hyper",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "rust-server",
@@ -141,7 +142,7 @@
   {
     "id": "csharp",
     "label": "C# (ASP.NET Core)",
-    "build_context": "csharp/aspnetcore",
+    "build_context": "petshop-stacks/csharp/aspnetcore",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "csharp-aspnetcore",
@@ -161,7 +162,7 @@
   {
     "id": "laravel",
     "label": "PHP (Laravel)",
-    "build_context": "php/laravel",
+    "build_context": "petshop-stacks/php/laravel",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "php-laravel",
@@ -185,7 +186,7 @@
   {
     "id": "rails",
     "label": "Ruby (Rails)",
-    "build_context": "ruby/rails",
+    "build_context": "petshop-stacks/ruby/rails",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "ruby-rails",
@@ -209,7 +210,7 @@
   {
     "id": "ktor",
     "label": "Kotlin (Ktor)",
-    "build_context": "kotlin/ktor",
+    "build_context": "petshop-stacks/kotlin/ktor",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "kotlin-ktor",
@@ -229,7 +230,7 @@
   {
     "id": "phoenix",
     "label": "Elixir (Phoenix)",
-    "build_context": "elixir/phoenix",
+    "build_context": "petshop-stacks/elixir/phoenix",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
     "db_name": "elixir-phoenix",

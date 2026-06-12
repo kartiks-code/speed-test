@@ -30,7 +30,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g go-gin-server \
   -i spec/petstore-31.yaml \
-  -o go/go-gin-server \
+  -o petshop-stacks/go/gin \
   --additional-properties=packageName=petstore,hideGenerationTimestamp=true
 ```
 
@@ -42,7 +42,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g spring \
   -i spec/petstore-31.yaml \
-  -o java/springboot \
+  -o petshop-stacks/java/springboot \
   --additional-properties=library=spring-boot,java8=true,interfaceOnly=false,useSpringBoot3=true,groupId=com.example,artifactId=petstore-server,artifactVersion=1.0.0
 ```
 
@@ -54,7 +54,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g java-helidon-server \
   -i spec/petstore-31.yaml \
-  -o java/helidon \
+  -o petshop-stacks/java/helidon \
   --additional-properties=library=mp,groupId=com.example,artifactId=petstore-helidon,artifactVersion=1.0.0
 ```
 
@@ -66,7 +66,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g java-quarkus \
   -i spec/petstore-31.yaml \
-  -o java/quarkus \
+  -o petshop-stacks/java/quarkus \
   --additional-properties=groupId=com.example,artifactId=petstore-quarkus,artifactVersion=1.0.0
 ```
 
@@ -78,7 +78,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g nodejs-express-server \
   -i spec/petstore-31.yaml \
-  -o nodejs \
+  -o petshop-stacks/nodejs/express \
   --additional-properties=npmName=petstore-server,npmVersion=1.0.0,hideGenerationTimestamp=true
 ```
 
@@ -90,7 +90,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g rust-server \
   -i spec/petstore-31.yaml \
-  -o rust \
+  -o petshop-stacks/rust/hyper \
   --additional-properties=packageName=petstore-server,packageVersion=1.0.0,hideGenerationTimestamp=true
 ```
 
@@ -102,7 +102,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g python-fastapi \
   -i spec/petstore-31.yaml \
-  -o python \
+  -o petshop-stacks/python/fastapi \
   --additional-properties=packageName=petstore,projectName=petstore-server,packageVersion=1.0.0,fastapiImplementationPackage=petstore.impl
 ```
 
@@ -114,7 +114,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g aspnetcore \
   -i spec/petstore-31.yaml \
-  -o csharp/aspnetcore \
+  -o petshop-stacks/csharp/aspnetcore \
   --additional-properties=aspnetCoreVersion=8.0,packageName=Petstore,packageVersion=1.0.0,hideGenerationTimestamp=true
 ```
 
@@ -126,7 +126,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g php-laravel \
   -i spec/petstore-31.yaml \
-  -o php/laravel \
+  -o petshop-stacks/php/laravel \
   --additional-properties=packageName=petstore,hideGenerationTimestamp=true
 ```
 
@@ -138,7 +138,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g ruby-on-rails \
   -i spec/petstore-31.yaml \
-  -o ruby/rails \
+  -o petshop-stacks/ruby/rails \
   --additional-properties=gemName=petstore,gemVersion=1.0.0,hideGenerationTimestamp=true
 ```
 
@@ -150,7 +150,7 @@ openapi-generator-cli generate \
 openapi-generator-cli generate \
   -g kotlin-server \
   -i spec/petstore-31.yaml \
-  -o kotlin/ktor \
+  -o petshop-stacks/kotlin/ktor \
   --additional-properties=library=ktor,groupId=com.example,artifactId=petstore-ktor,artifactVersion=1.0.0,packageName=com.example.petstore,hideGenerationTimestamp=true
 ```
 
@@ -158,7 +158,7 @@ openapi-generator-cli generate \
 
 ## 13. Elixir — Phoenix
 
-Elixir/Phoenix has no OpenAPI Generator server target. The `elixir/phoenix/` project
+Elixir/Phoenix has no OpenAPI Generator server target. The `petshop-stacks/elixir/phoenix/` project
 is hand-written using `mix phx.new --no-ecto --no-html` and **Postgrex** for raw SQL
-persistence. See `elixir/phoenix/AGENTS.md` for setup and conventions.
+persistence. See `petshop-stacks/elixir/phoenix/AGENTS.md` for setup and conventions.
 

@@ -89,7 +89,12 @@ function parseK6Summary(runDir) {
 
 // ── docker-stats CSV ──────────────────────────────────────────────────────────
 
-function parseDockerStats(runDir, appContainer) {
+function inTimingWindow(ts, timing) {
+  if (!timing?.k6_started_at || !timing?.k6_finished_at || !ts) return true;
+  return ts >= timing.k6_started_at && ts <= timing.k6_finished_at;
+}
+
+function parseDockerStats(runDir, appContainer, timing) {
   let text;
   try {
     text = fs.readFileSync(path.join(runDir, "docker-stats.csv"), "utf8");
@@ -97,7 +102,9 @@ function parseDockerStats(runDir, appContainer) {
     return {};
   }
 
-  const rows = parseCsv(text).filter((r) => r.container === appContainer);
+  const rows = parseCsv(text)
+    .filter((r) => r.container === appContainer)
+    .filter((r) => inTimingWindow(r.timestamp, timing));
   if (!rows.length) return {};
 
   const cpuVals = [];
@@ -189,7 +196,8 @@ function loadRun(runDir) {
   const appContainer = `speed-test-app-${stackId}-${variant}`;
 
   const k6 = parseK6Summary(runDir);
-  const { timeseries, ...resources } = parseDockerStats(runDir, appContainer);
+  const timing = meta.timing || null;
+  const { timeseries, ...resources } = parseDockerStats(runDir, appContainer, timing);
   const pg = parsePgDelta(runDir);
 
   const summary = {
@@ -205,6 +213,7 @@ function loadRun(runDir) {
     k6_script: meta.k6_script || null,
     mix: meta.mix || null,
     suite: meta.suite || null,
+    startup_seconds: timing?.startup_seconds ?? null,
     k6_rps: k6.k6_rps,
     k6_avg_ms: k6.k6_avg_ms,
     k6_p50_ms: k6.k6_p50_ms,
@@ -234,6 +243,8 @@ function loadRun(runDir) {
       k6_script: summary.k6_script,
       mix: summary.mix,
       suite: summary.suite,
+      timing,
+      startup_seconds: summary.startup_seconds,
     },
     k6: {
       rps: k6.k6_rps,
