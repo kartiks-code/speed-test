@@ -138,7 +138,7 @@ A React + Vite SPA for exploring results visually and triggering new runs.
 
 **Start with run triggering:** `npm run dev:all` from `viewer/` (starts control server + Vite), or run `npm run server` / `cd server && npm start` separately.
 
-The `predev`/`prebuild` scripts call `scripts/build-data.mjs`, which scans `../results/` and emits `viewer/public/data/index.json` plus per-run JSON files (including `k6_script` and `mix` from `run-meta.json`). These generated files are gitignored.
+The `predev`/`prebuild` scripts call `scripts/build-data.mjs`, which scans `../results/` and emits `viewer/public/data/index.json` plus per-run JSON files (including `k6_script`, `mix`, and `suite` from `run-meta.json`). These generated files are gitignored.
 
 Pages: **Single Run** (`/`), **Compare** (`/compare`), **Manage Runs** (`/manage`), **Run Tests** (`/run`), **Queue** (`/queue`).
 
