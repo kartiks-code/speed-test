@@ -1,0 +1,33 @@
+# Mutation testing (gremlins)
+.gremlins/
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+petstore-fiber
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.txt
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directory (when vendoring)
+/vendor/
+
+# Environment variables
+.env
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
