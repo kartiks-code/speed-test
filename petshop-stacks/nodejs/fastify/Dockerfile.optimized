@@ -1,0 +1,14 @@
+FROM node:22 AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+
+FROM node:22-alpine
+RUN addgroup -S petstore && adduser -S petstore -G petstore
+WORKDIR /app
+COPY --from=builder /app .
+USER petstore
+ENV NODE_ENV=production PG_POOL_MAX=100
+EXPOSE 8080
+CMD ["node", "index.js"]
