@@ -1,0 +1,13 @@
+target/
+
+# Mutation testing (cargo-mutants)
+mutants.out/
+mutants.out.old/
+
+# Environment variables
+.env
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp

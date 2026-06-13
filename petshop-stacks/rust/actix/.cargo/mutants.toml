@@ -1,0 +1,4 @@
+examine_globs = [
+    "src/helpers.rs",
+    "src/db_config.rs",
+]

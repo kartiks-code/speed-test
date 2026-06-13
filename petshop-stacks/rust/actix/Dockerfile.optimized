@@ -1,0 +1,24 @@
+FROM rust:1 AS chef
+RUN cargo install cargo-chef
+WORKDIR /app
+
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
+ENV CARGO_PROFILE_RELEASE_LTO=thin
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+RUN cargo build --release && strip target/release/petstore-actix
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN useradd -r -s /bin/false petstore
+COPY --from=builder /app/target/release/petstore-actix /usr/local/bin/petstore-actix
+USER petstore
+ENV DB_POOL_MAX=200
+EXPOSE 8080
+CMD ["petstore-actix"]
