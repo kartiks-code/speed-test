@@ -10,7 +10,9 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(
+        // singleton: one repository (and thus one PDO connection) per worker
+        // process, instead of reconnecting on every resolution.
+        $this->app->singleton(
             PetstoreRepositoryInterface::class,
             PostgresPetstoreRepository::class
         );

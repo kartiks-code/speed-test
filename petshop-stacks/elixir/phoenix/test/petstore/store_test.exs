@@ -4,7 +4,7 @@ defmodule Petstore.StoreTest do
   alias Petstore.InMemoryRepository, as: Repo
 
   setup do
-    {:ok, _} = start_supervised(Repo)
+    Repo.reset()
     :ok
   end
 
@@ -65,7 +65,7 @@ defmodule Petstore.StoreTest do
     end
   end
 
-  describe "get_inventory/0" do
+  describe "get_inventory/0 with multiple statuses" do
     test "returns empty map when no pets" do
       {:ok, inventory} = Repo.get_inventory()
       assert inventory == %{}
@@ -79,6 +79,35 @@ defmodule Petstore.StoreTest do
       {:ok, inventory} = Repo.get_inventory()
       assert inventory["available"] == 2
       assert inventory["sold"] == 1
+    end
+  end
+
+  describe "place_order/1 with id = 0" do
+    test "assigns a new ID when id is 0" do
+      {:ok, order} = Repo.place_order(%{"id" => 0, "petId" => 1})
+      assert order["id"] != 0
+      assert order["id"] >= 1
+    end
+  end
+
+  describe "place_order/1 with snake_case keys" do
+    test "accepts pet_id as snake_case" do
+      {:ok, order} = Repo.place_order(%{"pet_id" => 5, "quantity" => 1})
+      assert order["petId"] == 5
+    end
+
+    test "accepts ship_date as snake_case" do
+      {:ok, order} = Repo.place_order(%{"petId" => 1, "ship_date" => "2024-01-01"})
+      assert order["shipDate"] == "2024-01-01"
+    end
+  end
+
+  describe "place_order/1 with atom keys" do
+    test "accepts atom keys" do
+      {:ok, order} = Repo.place_order(%{id: 77, petId: 2, quantity: 3, status: "approved"})
+      assert order["id"] == 77
+      assert order["petId"] == 2
+      assert order["status"] == "approved"
     end
   end
 end

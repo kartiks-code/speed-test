@@ -142,17 +142,16 @@ class FakeConnection:
 
     # --- pet row helpers ----------------------------------------------
     def _store_pet(self, args) -> dict:
-        pet_id, name, category_json, photo_urls_json, tags_json, status = args
+        pet_id, name, category_json, photo_urls, tags, status = args
         row = {
             "id": pet_id,
             "name": name,
             # TEXT column: stored verbatim as the JSON string
             "category": category_json,
-            # JSON columns: codec decodes to Python objects on read
-            "photo_urls": json.loads(photo_urls_json)
-            if photo_urls_json is not None
-            else None,
-            "tags": json.loads(tags_json) if tags_json is not None else None,
+            # JSON columns: the impl passes Python objects, the asyncpg orjson
+            # codec encodes on write and decodes back to objects on read
+            "photo_urls": photo_urls,
+            "tags": tags,
             "status": status,
         }
         self.db.pets[pet_id] = row

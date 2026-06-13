@@ -105,6 +105,15 @@ Stryker produces an HTML report at `reports/mutation/mutation.html`.
 A surviving mutant means no test distinguished the mutated code from the
 original — either tighten an assertion or confirm the mutation is equivalent.
 
+**Config note:** `stryker.config.json` uses `mochaOptions.spec` (an array) for
+`@stryker-mutator/mocha-runner` v9. The older `mocha.spec` key (a string) is not
+recognised by Stryker 9.x and will produce a "No tests were executed" error.
+
+**Current mutation score:** ~92% overall (100% on all `db/` repositories;
+~83% on `services/` — the remaining no-coverage mutants are unreachable
+`catch` blocks in `logoutUser` and StringLiteral fallback-message mutations
+in service error paths that require an error with an empty message to kill).
+
 ## Common Commands
 
 ```bash

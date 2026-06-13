@@ -165,5 +165,102 @@ namespace Petstore.Tests
             var response = repo.UploadFile(999, null, new MemoryStream());
             Assert.Null(response);
         }
+
+        // ── ID sequencing: kills lines 24, 25, 26 mutations ─────────────────────
+
+        [Fact]
+        public void AddPet_AutoAssignsSequentialIds()
+        {
+            var repo = CreateRepo();
+            var p1 = repo.AddPet(new Pet { Id = 0, Name = "A", PhotoUrls = new List<string>() });
+            var p2 = repo.AddPet(new Pet { Id = 0, Name = "B", PhotoUrls = new List<string>() });
+            Assert.Equal(1, p1.Id);
+            Assert.Equal(2, p2.Id);
+        }
+
+        [Fact]
+        public void AddPet_SetsSequenceBeyondExplicitId()
+        {
+            // Kills: line 25 (>= vs > and negation), line 26 (+1 vs -1)
+            var repo = CreateRepo();
+            repo.AddPet(new Pet { Id = 5, Name = "Explicit", PhotoUrls = new List<string>() });
+            var auto = repo.AddPet(new Pet { Id = 0, Name = "Auto", PhotoUrls = new List<string>() });
+            Assert.Equal(6, auto.Id);
+        }
+
+        [Fact]
+        public void AddPet_SetsSequenceWhenExplicitIdEqualsNextId()
+        {
+            // Kills: line 25 (>= vs >) — only differs when Id == _nextPetId (both start at 1)
+            var repo = CreateRepo();
+            repo.AddPet(new Pet { Id = 1, Name = "Explicit", PhotoUrls = new List<string>() });
+            var auto = repo.AddPet(new Pet { Id = 0, Name = "Auto", PhotoUrls = new List<string>() });
+            Assert.Equal(2, auto.Id);
+        }
+
+        // ── FindPetsByTags with empty list: kills line 50 (|| vs &&) ─────────────
+
+        [Fact]
+        public void FindPetsByTags_ReturnsAll_WhenTagsIsEmpty()
+        {
+            var repo = CreateRepo();
+            repo.AddPet(new Pet { Id = 1, Name = "A", PhotoUrls = new List<string>(),
+                Tags = new List<Tag> { new Tag { Name = "cute" } } });
+            repo.AddPet(new Pet { Id = 2, Name = "B", PhotoUrls = new List<string>(),
+                Tags = new List<Tag> { new Tag { Name = "fun" } } });
+            var result = repo.FindPetsByTags(new List<string>());
+            Assert.Equal(2, result.Count);
+        }
+
+        // ── UploadFile byte count: kills line 88 (statement removal of CopyTo) ───
+
+        [Fact]
+        public void UploadFile_ReportsExactByteCount()
+        {
+            var repo = CreateRepo();
+            repo.AddPet(SamplePet(30));
+            var data = Encoding.UTF8.GetBytes("hello");
+            var response = repo.UploadFile(30, "meta", new MemoryStream(data));
+            Assert.Contains("5 bytes", response.Message);
+        }
+
+        // ── Status string helpers: covers line 189 NoCoverage ("pending" → "") ───
+
+        [Fact]
+        public void FindPetsByStatus_Pending_ReturnsMatchingPets()
+        {
+            var repo = CreateRepo();
+            repo.AddPet(new Pet { Id = 1, Name = "P", PhotoUrls = new List<string>(),
+                Status = Pet.StatusEnum.PendingEnum });
+            repo.AddPet(new Pet { Id = 2, Name = "A", PhotoUrls = new List<string>(),
+                Status = Pet.StatusEnum.AvailableEnum });
+            var pending = repo.FindPetsByStatus("pending");
+            Assert.Single(pending);
+            Assert.Equal("P", pending[0].Name);
+        }
+
+        // ── UpdatePetWithForm pending status: kills line 196 ("pending" → "") ────
+
+        [Fact]
+        public void UpdatePetWithForm_SetsPendingStatus()
+        {
+            var repo = CreateRepo();
+            repo.AddPet(SamplePet(50));
+            repo.UpdatePetWithForm(50, null, "pending");
+            Assert.Equal(Pet.StatusEnum.PendingEnum, repo.GetPetById(50).Status);
+        }
+
+        // ── GetInventory unknown status: covers line 108 ("unknown" → "") ────────
+
+        [Fact]
+        public void GetInventory_CountsUnknownStatus_ForInvalidEnumValue()
+        {
+            var repo = CreateRepo();
+            repo.AddPet(new Pet { Id = 1, Name = "Ghost", PhotoUrls = new List<string>(),
+                Status = (Pet.StatusEnum)99 });
+            var inv = repo.GetInventory();
+            Assert.True(inv.ContainsKey("unknown"), "Pets with unknown status should be grouped as 'unknown'");
+            Assert.Equal(1, inv["unknown"]);
+        }
     }
 }

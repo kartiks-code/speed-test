@@ -142,8 +142,41 @@ class UserRepositoryTest {
         assertTrue(sql.contains("WHERE username = ?"));
         verify(statement).setLong(1, 5L);
         verify(statement).setString(2, "New");
+        verify(statement).setString(3, null);
+        verify(statement).setString(4, null);
+        verify(statement).setString(5, null);
+        verify(statement).setString(6, null);
         verify(statement).setInt(7, 3);
         verify(statement).setString(8, "alice");
+        verify(statement).executeUpdate();
+    }
+
+    @Test
+    void updateBindsAllNonNullFields() throws Exception {
+        User user = new User().id(10L).firstName("Bob").lastName("Jones")
+            .email("bob@example.com").password("secret").phone("555-1234").userStatus(2);
+
+        repository.update("bob", user);
+
+        verify(statement).setLong(1, 10L);
+        verify(statement).setString(2, "Bob");
+        verify(statement).setString(3, "Jones");
+        verify(statement).setString(4, "bob@example.com");
+        verify(statement).setString(5, "secret");
+        verify(statement).setString(6, "555-1234");
+        verify(statement).setInt(7, 2);
+        verify(statement).setString(8, "bob");
+    }
+
+    @Test
+    void updateSetsNullsForMissingIdAndStatus() throws Exception {
+        User user = new User().firstName("Null");
+
+        repository.update("carol", user);
+
+        verify(statement).setNull(1, java.sql.Types.BIGINT);
+        verify(statement).setNull(7, java.sql.Types.INTEGER);
+        verify(statement).setString(8, "carol");
         verify(statement).executeUpdate();
     }
 

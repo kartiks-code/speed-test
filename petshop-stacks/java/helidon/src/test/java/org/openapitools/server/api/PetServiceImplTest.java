@@ -1,6 +1,7 @@
 package org.openapitools.server.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
@@ -46,7 +47,9 @@ class PetServiceImplTest {
 
     @Test
     void deletePetDelegatesToRepository() {
-        service.deletePet(7L, "api-key");
+        Response response = service.deletePet(7L, "api-key");
+        assertNotNull(response);
+        assertEquals(200, response.getStatus());
         verify(repo).delete(7L);
     }
 

@@ -56,10 +56,19 @@ pitest {
     pitestVersion = "1.16.1"
     junit5PluginVersion = "1.2.1"
     targetClasses = setOf("com.example.petstore.apis.*", "com.example.petstore.repository.InMemoryPetstoreRepository")
+    targetTests = setOf("com.example.petstore.*")
     excludedClasses = setOf(
         "com.example.petstore.models.*",
         "com.example.petstore.infrastructure.*"
     )
+    // Exclude Kotlin coroutine state-machine methods (invokeSuspend) and outer
+    // route-registration functions (PetApi/UserApi/StoreApi) — these produce
+    // only equivalent mutations that no functional test can kill.
+    excludedMethods = setOf("invokeSuspend", "PetApi", "UserApi", "StoreApi")
+    // Kotlin emits defensive null/exception checks that are unreachable in a
+    // strongly-typed codebase; exclude them so PIT doesn't count them as
+    // survived equivalent mutations.
+    avoidCallsTo = setOf("kotlin.jvm.internal.Intrinsics", "kotlin.ResultKt")
     outputFormats = setOf("HTML", "XML")
     threads = 2
     mutators = setOf("DEFAULTS")

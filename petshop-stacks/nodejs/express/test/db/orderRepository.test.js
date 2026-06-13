@@ -76,7 +76,9 @@ describe('orderRepository', () => {
 
       const order = await orderRepo.findById(11);
 
-      expect(queryStub.firstCall.args[1]).to.deep.equal([11]);
+      const [text, params] = queryStub.firstCall.args;
+      expect(sql(text)).to.contain('SELECT "id", pet_id, quantity, ship_date');
+      expect(params).to.deep.equal([11]);
       expect(order).to.deep.equal({
         id: 11,
         petId: 3,
@@ -87,6 +89,28 @@ describe('orderRepository', () => {
       });
     });
 
+    it('maps null id, petId, quantity, and complete fields to undefined', async () => {
+      queryStub.resolves({
+        rows: [{
+          id: null,
+          pet_id: null,
+          quantity: null,
+          ship_date: null,
+          status: null,
+          complete: null,
+        }],
+      });
+
+      const order = await orderRepo.findById(5);
+
+      expect(order.id).to.equal(undefined);
+      expect(order.petId).to.equal(undefined);
+      expect(order.quantity).to.equal(undefined);
+      expect(order.shipDate).to.equal(undefined);
+      expect(order.status).to.equal(undefined);
+      expect(order.complete).to.equal(undefined);
+    });
+
     it('throws a 404 when the order is missing', async () => {
       queryStub.resolves({ rows: [] });
 
@@ -94,6 +118,17 @@ describe('orderRepository', () => {
 
       expect(err.status).to.equal(404);
       expect(err.message).to.equal('Order not found');
+    });
+  });
+
+  describe('place id generation', () => {
+    it('increments the id counter on consecutive calls', async () => {
+      queryStub.resolves({ rows: [], rowCount: 1 });
+
+      const first = await orderRepo.place({});
+      const second = await orderRepo.place({});
+
+      expect(second.id).to.equal(first.id + 1);
     });
   });
 

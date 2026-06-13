@@ -1,6 +1,8 @@
 package org.openapitools.server.db;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -134,8 +136,12 @@ class PetRepositoryTest {
         String sql = capturedSql();
         assertTrue(sql.contains("UPDATE pet SET"));
         assertTrue(sql.contains("status = cast(? as pet_status)"));
-        verify(statement).setLong(6, 5L);
+        verify(statement).setString(1, "Rex");
+        verify(statement).setString(2, null);
+        verify(statement).setString(3, "[]");
+        verify(statement).setString(4, null);
         verify(statement).setString(5, "sold");
+        verify(statement).setLong(6, 5L);
     }
 
     @Test
@@ -218,9 +224,29 @@ class PetRepositoryTest {
 
     @Test
     void findByTagsReturnsEmptyWithoutDbForEmptyInput() {
-        assertTrue(repository.findByTags(List.of()).isEmpty());
+        List<Pet> emptyResult = repository.findByTags(List.of());
+        assertTrue(emptyResult.isEmpty());
+        assertDoesNotThrow(() -> emptyResult.add(new Pet()),
+            "Returned list must be mutable so callers can aggregate results");
         assertTrue(repository.findByTags(null).isEmpty());
         verifyNoInteractions(dsProvider);
+    }
+
+    @Test
+    void findByTagsReturnsNonEmptyResultFromDb() throws Exception {
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject("id", Long.class)).thenReturn(5L);
+        when(resultSet.getString("name")).thenReturn("Buddy");
+        when(resultSet.getString("category")).thenReturn(null);
+        when(resultSet.getString("photo_urls")).thenReturn(null);
+        when(resultSet.getString("tags")).thenReturn(null);
+        when(resultSet.getString("status")).thenReturn(null);
+
+        List<Pet> result = repository.findByTags(List.of("cute"));
+
+        assertEquals(1, result.size());
+        assertEquals(5L, result.get(0).getId());
+        assertEquals("Buddy", result.get(0).getName());
     }
 
     @Test
@@ -260,11 +286,35 @@ class PetRepositoryTest {
         repository.updateWithForm(7L, "Buddy", "sold");
 
         String sql = capturedSql();
-        assertTrue(sql.contains("\"name\" = ?"));
-        assertTrue(sql.contains("status = cast(? as pet_status)"));
+        assertTrue(sql.contains("\"name\" = ?, status = cast(? as pet_status)"),
+            "Comma must separate name and status clauses");
         verify(statement).setObject(1, "Buddy");
         verify(statement).setObject(2, "sold");
         verify(statement).setObject(3, 7L);
+        verify(statement).executeUpdate();
+    }
+
+    @Test
+    void updateWithFormWithStatusOnlyBuildsCorrectSql() throws Exception {
+        repository.updateWithForm(3L, null, "available");
+
+        String sql = capturedSql();
+        assertTrue(sql.contains("status = cast(? as pet_status)"));
+        assertFalse(sql.contains("SET ,"), "No spurious comma when name is absent");
+        verify(statement).setObject(1, "available");
+        verify(statement).setObject(2, 3L);
+        verify(statement).executeUpdate();
+    }
+
+    @Test
+    void updateWithFormWithNameOnlyBuildsCorrectSql() throws Exception {
+        repository.updateWithForm(4L, "Max", null);
+
+        String sql = capturedSql();
+        assertTrue(sql.contains("\"name\" = ?"));
+        assertFalse(sql.contains("status"), "Status clause must be absent when status is null");
+        verify(statement).setObject(1, "Max");
+        verify(statement).setObject(2, 4L);
         verify(statement).executeUpdate();
     }
 

@@ -28,6 +28,16 @@ describe('StoreService', () => {
 
       expect(rejection).to.deep.equal({ error: 'db down', code: 500 });
     });
+
+    it('uses e.status when present rather than the 500 default', async () => {
+      const err = new Error('db timeout');
+      err.status = 503;
+      sinon.stub(petRepo, 'getInventory').rejects(err);
+
+      const rejection = await expectRejection(StoreService.getInventory());
+
+      expect(rejection.code).to.equal(503);
+    });
   });
 
   describe('placeOrder', () => {
@@ -61,14 +71,22 @@ describe('StoreService', () => {
       expect(res).to.deep.equal({ payload: order, code: 200 });
     });
 
-    it('maps a 404 not-found error', async () => {
-      const err = new Error('Order not found');
+    it('maps a 404 not-found error preserving e.message and e.status', async () => {
+      const err = new Error('Order 999 does not exist');
       err.status = 404;
       sinon.stub(orderRepo, 'findById').rejects(err);
 
       const rejection = await expectRejection(StoreService.getOrderById({ orderId: 999 }));
 
-      expect(rejection).to.deep.equal({ error: 'Order not found', code: 404 });
+      expect(rejection).to.deep.equal({ error: 'Order 999 does not exist', code: 404 });
+    });
+
+    it('defaults code to 404 when error has no status', async () => {
+      sinon.stub(orderRepo, 'findById').rejects(new Error('missing'));
+
+      const rejection = await expectRejection(StoreService.getOrderById({ orderId: 1 }));
+
+      expect(rejection.code).to.equal(404);
     });
   });
 

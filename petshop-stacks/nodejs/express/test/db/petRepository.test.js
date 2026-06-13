@@ -81,6 +81,7 @@ describe('petRepository', () => {
 
       expect(err).to.be.an.instanceof(Error);
       expect(err.status).to.equal(400);
+      expect(err.message).to.equal('Pet ID is required for update');
       expect(queryStub.called).to.equal(false);
     });
 
@@ -90,6 +91,7 @@ describe('petRepository', () => {
       const err = await expectRejection(petRepo.update({ id: 7, name: 'Gone', photoUrls: [] }));
 
       expect(err.status).to.equal(404);
+      expect(err.message).to.equal('Pet not found');
     });
 
     it('returns the pet when the update affects a row', async () => {
@@ -100,7 +102,29 @@ describe('petRepository', () => {
 
       const [text, params] = queryStub.firstCall.args;
       expect(sql(text)).to.contain('UPDATE pet SET');
+      expect(params[1]).to.equal(null); // no category → null
+      expect(params[3]).to.equal(null); // no tags → null
       expect(params[5]).to.equal(7); // id is the last bound param (WHERE clause)
+      expect(result).to.deep.equal(pet);
+    });
+
+    it('serializes category and tags when present', async () => {
+      queryStub.resolves({ rowCount: 1 });
+      const pet = {
+        id: 10,
+        name: 'Cat',
+        photoUrls: [],
+        category: { id: 1, name: 'Dogs' },
+        tags: [{ id: 5, name: 'cute' }],
+        status: 'available',
+      };
+
+      const result = await petRepo.update(pet);
+
+      const params = queryStub.firstCall.args[1];
+      expect(params[1]).to.equal(JSON.stringify({ id: 1, name: 'Dogs' })); // category
+      expect(params[3]).to.equal(JSON.stringify([{ id: 5, name: 'cute' }])); // tags
+      expect(params[4]).to.equal('available'); // status
       expect(result).to.deep.equal(pet);
     });
   });
@@ -120,7 +144,10 @@ describe('petRepository', () => {
 
       const pet = await petRepo.findById(3);
 
-      expect(queryStub.firstCall.args[1]).to.deep.equal([3]);
+      const [text, params] = queryStub.firstCall.args;
+      expect(sql(text)).to.contain('SELECT "id"');
+      expect(sql(text)).to.contain('FROM pet WHERE "id" = $1');
+      expect(params).to.deep.equal([3]);
       expect(pet).to.deep.equal({
         id: 3,
         name: 'Milo',
@@ -129,6 +156,67 @@ describe('petRepository', () => {
         tags: [{ id: 2, name: 'tag' }],
         status: 'available',
       });
+    });
+
+    it('handles a pre-parsed category object without double-parsing', async () => {
+      queryStub.resolves({
+        rows: [{
+          id: '5',
+          name: 'Obj',
+          category: { id: 2, name: 'Cats' },
+          photo_urls: [],
+          tags: null,
+          status: null,
+        }],
+      });
+
+      const pet = await petRepo.findById(5);
+
+      expect(pet.category).to.deep.equal({ id: 2, name: 'Cats' });
+    });
+
+    it('parses photo_urls when stored as a JSON string', async () => {
+      queryStub.resolves({
+        rows: [{
+          id: '6',
+          name: 'Str',
+          category: null,
+          photo_urls: '["http://a.png","http://b.png"]',
+          tags: null,
+          status: null,
+        }],
+      });
+
+      const pet = await petRepo.findById(6);
+
+      expect(pet.photoUrls).to.deep.equal(['http://a.png', 'http://b.png']);
+    });
+
+    it('parses tags when stored as a JSON string', async () => {
+      queryStub.resolves({
+        rows: [{
+          id: '7',
+          name: 'TagStr',
+          category: null,
+          photo_urls: [],
+          tags: '[{"id":1,"name":"cute"}]',
+          status: null,
+        }],
+      });
+
+      const pet = await petRepo.findById(7);
+
+      expect(pet.tags).to.deep.equal([{ id: 1, name: 'cute' }]);
+    });
+
+    it('maps a null id to undefined', async () => {
+      queryStub.resolves({
+        rows: [{ id: null, name: 'NoId', category: null, photo_urls: [], tags: null, status: null }],
+      });
+
+      const pet = await petRepo.findById(0);
+
+      expect(pet.id).to.equal(undefined);
     });
 
     it('defaults photoUrls to an empty array and omits absent fields', async () => {
@@ -214,6 +302,28 @@ describe('petRepository', () => {
       expect(params).to.deep.equal(['NewName', 'pending', 9]);
     });
 
+    it('joins multiple SET fields with ", " separator and no extra leading fields', async () => {
+      queryStub.resolves({ rowCount: 1 });
+
+      await petRepo.updateWithForm(9, 'Name', 'available');
+
+      const [text] = queryStub.firstCall.args;
+      // The SET clause should start immediately with "name" — no injected prefix
+      expect(sql(text)).to.match(/SET "name" = \$1, status = cast\(\$2 as pet_status\)/);
+    });
+
+    it('only sets name when status is null — does not return early', async () => {
+      queryStub.resolves({ rowCount: 1 });
+
+      await petRepo.updateWithForm(3, 'OnlyName', null);
+
+      expect(queryStub.called).to.equal(true);
+      const [text, params] = queryStub.firstCall.args;
+      expect(sql(text)).to.contain('"name" = $1');
+      expect(sql(text)).not.to.contain('status');
+      expect(params).to.deep.equal(['OnlyName', 3]);
+    });
+
     it('only sets status when name is omitted', async () => {
       queryStub.resolves({ rowCount: 1 });
 
@@ -223,6 +333,65 @@ describe('petRepository', () => {
       expect(sql(text)).to.contain('status = cast($1 as pet_status)');
       expect(sql(text)).to.contain('WHERE "id" = $2');
       expect(params).to.deep.equal(['sold', 9]);
+    });
+  });
+
+  describe('deletePet', () => {
+    it('issues a parameterized DELETE for the given petId', async () => {
+      queryStub.resolves({ rowCount: 1 });
+
+      await petRepo.deletePet(42);
+
+      const [text, params] = queryStub.firstCall.args;
+      expect(sql(text)).to.contain('DELETE FROM pet WHERE "id" = $1');
+      expect(params).to.deep.equal([42]);
+    });
+  });
+
+  describe('addPhoto', () => {
+    it('throws 404 when the pet does not exist', async () => {
+      queryStub.resolves({ rows: [] });
+
+      const err = await expectRejection(petRepo.addPhoto(99, Buffer.from('data'), 'image/jpeg', null));
+
+      expect(err.status).to.equal(404);
+      expect(err.message).to.equal('Pet not found');
+    });
+
+    it('inserts the photo and returns the byte count', async () => {
+      const content = Buffer.from('photo-data');
+      queryStub.onFirstCall().resolves({ rows: [{ 1: 1 }] });
+      queryStub.onSecondCall().resolves({ rowCount: 1 });
+
+      const size = await petRepo.addPhoto(5, content, 'image/png', 'meta');
+
+      expect(size).to.equal(content.length);
+      const [text, params] = queryStub.secondCall.args;
+      expect(sql(text)).to.contain('INSERT INTO pet_photo');
+      expect(params[0]).to.equal(5);        // petId
+      expect(params[1]).to.equal('image/png'); // contentType
+      expect(params[2]).to.equal('meta');   // metadata
+      expect(params[3]).to.deep.equal(content); // content
+    });
+
+    it('returns 0 when content is null', async () => {
+      queryStub.onFirstCall().resolves({ rows: [{ 1: 1 }] });
+      queryStub.onSecondCall().resolves({ rowCount: 1 });
+
+      const size = await petRepo.addPhoto(5, null, 'image/png', null);
+
+      expect(size).to.equal(0);
+    });
+
+    it('checks existence with the correct SQL and pet id', async () => {
+      queryStub.onFirstCall().resolves({ rows: [{ 1: 1 }] });
+      queryStub.onSecondCall().resolves({ rowCount: 1 });
+
+      await petRepo.addPhoto(7, Buffer.from('x'), 'application/octet-stream', null);
+
+      const [existsText, existsParams] = queryStub.firstCall.args;
+      expect(existsText).to.contain('SELECT 1 FROM pet');
+      expect(existsParams).to.deep.equal([7]);
     });
   });
 
@@ -238,6 +407,10 @@ describe('petRepository', () => {
 
       const inventory = await petRepo.getInventory();
 
+      const [text, params] = queryStub.firstCall.args;
+      expect(text).to.contain('SELECT status::text');
+      expect(text).to.contain('cnt');
+      expect(params).to.deep.equal([]);
       expect(inventory).to.deep.equal({ available: 3, sold: 1 });
     });
   });

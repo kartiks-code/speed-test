@@ -5,27 +5,27 @@ import com.example.petstore.models.*
 interface PetstoreRepository {
 
     // --- Pet ---
-    fun addPet(pet: Pet): Pet
-    fun updatePet(pet: Pet): Pet
-    fun findPetsByStatus(status: String): List<Pet>
-    fun findPetsByTags(tags: List<String>): List<Pet>
-    fun getPetById(petId: Long): Pet?
-    fun updatePetWithForm(petId: Long, name: String?, status: String?): Pet
-    fun deletePet(petId: Long)
-    fun uploadFile(petId: Long, additionalMetadata: String?, bytes: ByteArray): ModelApiResponse
+    suspend fun addPet(pet: Pet): Pet
+    suspend fun updatePet(pet: Pet): Pet
+    suspend fun findPetsByStatus(status: String): List<Pet>
+    suspend fun findPetsByTags(tags: List<String>): List<Pet>
+    suspend fun getPetById(petId: Long): Pet?
+    suspend fun updatePetWithForm(petId: Long, name: String?, status: String?): Pet
+    suspend fun deletePet(petId: Long)
+    suspend fun uploadFile(petId: Long, additionalMetadata: String?, bytes: ByteArray): ModelApiResponse
 
     // --- Store ---
-    fun getInventory(): Map<String, Int>
-    fun placeOrder(order: Order): Order
-    fun getOrderById(orderId: Long): Order?
-    fun deleteOrder(orderId: Long)
+    suspend fun getInventory(): Map<String, Int>
+    suspend fun placeOrder(order: Order): Order
+    suspend fun getOrderById(orderId: Long): Order?
+    suspend fun deleteOrder(orderId: Long)
 
     // --- User ---
-    fun createUser(user: User): User
-    fun createUsersWithList(users: List<User>): User
-    fun loginUser(username: String, password: String): String
-    fun logoutUser()
-    fun getUserByName(username: String): User?
-    fun updateUser(username: String, user: User)
-    fun deleteUser(username: String)
+    suspend fun createUser(user: User): User
+    suspend fun createUsersWithList(users: List<User>): User
+    suspend fun loginUser(username: String, password: String): String
+    suspend fun logoutUser()
+    suspend fun getUserByName(username: String): User?
+    suspend fun updateUser(username: String, user: User)
+    suspend fun deleteUser(username: String)
 }

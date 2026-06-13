@@ -1,9 +1,9 @@
 import asyncio
-import json
 import os
 from typing import Any
 
 import asyncpg
+import orjson
 
 
 _pool: asyncpg.Pool | None = None
@@ -22,17 +22,21 @@ def _db_url() -> str:
     return f"postgresql://{user}:{password}@{host}:{port}/{db}"
 
 
+def _orjson_encode(value: Any) -> str:
+    return orjson.dumps(value).decode()
+
+
 async def _init_connection(conn: asyncpg.Connection) -> None:
     await conn.set_type_codec(
         "json",
-        encoder=json.dumps,
-        decoder=json.loads,
+        encoder=_orjson_encode,
+        decoder=orjson.loads,
         schema="pg_catalog",
     )
     await conn.set_type_codec(
         "jsonb",
-        encoder=json.dumps,
-        decoder=json.loads,
+        encoder=_orjson_encode,
+        decoder=orjson.loads,
         schema="pg_catalog",
     )
 

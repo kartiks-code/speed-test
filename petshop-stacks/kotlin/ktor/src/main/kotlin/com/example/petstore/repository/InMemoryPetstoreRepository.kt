@@ -23,14 +23,14 @@ class InMemoryPetstoreRepository : PetstoreRepository {
     // Pet
     // -------------------------------------------------------------------------
 
-    override fun addPet(pet: Pet): Pet {
+    override suspend fun addPet(pet: Pet): Pet {
         val id = pet.id ?: nextPetId()
         val saved = pet.copy(id = id)
         pets[id] = saved
         return saved
     }
 
-    override fun updatePet(pet: Pet): Pet {
+    override suspend fun updatePet(pet: Pet): Pet {
         val id = pet.id ?: throw InvalidInputException("Pet id required for update")
         pets[id] ?: throw NotFoundException("Pet not found: $id")
         val updated = pet.copy(id = id)
@@ -38,15 +38,15 @@ class InMemoryPetstoreRepository : PetstoreRepository {
         return updated
     }
 
-    override fun findPetsByStatus(status: String): List<Pet> =
+    override suspend fun findPetsByStatus(status: String): List<Pet> =
         pets.values.filter { it.status?.value == status }
 
-    override fun findPetsByTags(tags: List<String>): List<Pet> =
+    override suspend fun findPetsByTags(tags: List<String>): List<Pet> =
         pets.values.filter { pet -> pet.tags?.any { tag -> tags.contains(tag.name) } == true }
 
-    override fun getPetById(petId: Long): Pet? = pets[petId]
+    override suspend fun getPetById(petId: Long): Pet? = pets[petId]
 
-    override fun updatePetWithForm(petId: Long, name: String?, status: String?): Pet {
+    override suspend fun updatePetWithForm(petId: Long, name: String?, status: String?): Pet {
         val existing = pets[petId] ?: throw NotFoundException("Pet not found: $petId")
         val updated = existing.copy(
             name = name ?: existing.name,
@@ -56,11 +56,11 @@ class InMemoryPetstoreRepository : PetstoreRepository {
         return updated
     }
 
-    override fun deletePet(petId: Long) {
+    override suspend fun deletePet(petId: Long) {
         pets.remove(petId) ?: throw NotFoundException("Pet not found: $petId")
     }
 
-    override fun uploadFile(petId: Long, additionalMetadata: String?, bytes: ByteArray): ModelApiResponse {
+    override suspend fun uploadFile(petId: Long, additionalMetadata: String?, bytes: ByteArray): ModelApiResponse {
         pets[petId] ?: throw NotFoundException("Pet not found: $petId")
         val id = nextPhotoId()
         photos[id] = bytes
@@ -71,7 +71,7 @@ class InMemoryPetstoreRepository : PetstoreRepository {
     // Store
     // -------------------------------------------------------------------------
 
-    override fun getInventory(): Map<String, Int> {
+    override suspend fun getInventory(): Map<String, Int> {
         val result = mutableMapOf<String, Int>()
         for (pet in pets.values) {
             val s = pet.status?.value ?: continue
@@ -80,16 +80,16 @@ class InMemoryPetstoreRepository : PetstoreRepository {
         return result
     }
 
-    override fun placeOrder(order: Order): Order {
+    override suspend fun placeOrder(order: Order): Order {
         val id = order.id ?: nextOrderId()
         val saved = order.copy(id = id)
         orders[id] = saved
         return saved
     }
 
-    override fun getOrderById(orderId: Long): Order? = orders[orderId]
+    override suspend fun getOrderById(orderId: Long): Order? = orders[orderId]
 
-    override fun deleteOrder(orderId: Long) {
+    override suspend fun deleteOrder(orderId: Long) {
         orders.remove(orderId) ?: throw NotFoundException("Order not found: $orderId")
     }
 
@@ -97,7 +97,7 @@ class InMemoryPetstoreRepository : PetstoreRepository {
     // User
     // -------------------------------------------------------------------------
 
-    override fun createUser(user: User): User {
+    override suspend fun createUser(user: User): User {
         val uname = user.username ?: throw InvalidInputException("Username required")
         val id = user.id ?: ((users.values.mapNotNull { it.id }.maxOrNull() ?: 0L) + 1L)
         val saved = user.copy(id = id)
@@ -105,26 +105,26 @@ class InMemoryPetstoreRepository : PetstoreRepository {
         return saved
     }
 
-    override fun createUsersWithList(users: List<User>): User {
+    override suspend fun createUsersWithList(users: List<User>): User {
         for (user in users) createUser(user)
         return getUserByName(users.first().username ?: "")!!
     }
 
-    override fun loginUser(username: String, password: String): String {
+    override suspend fun loginUser(username: String, password: String): String {
         users[username] ?: throw NotFoundException("User not found: $username")
         return "logged-in-$username"
     }
 
-    override fun logoutUser() { /* stateless no-op */ }
+    override suspend fun logoutUser() { /* stateless no-op */ }
 
-    override fun getUserByName(username: String): User? = users[username]
+    override suspend fun getUserByName(username: String): User? = users[username]
 
-    override fun updateUser(username: String, user: User) {
+    override suspend fun updateUser(username: String, user: User) {
         users[username] ?: throw NotFoundException("User not found: $username")
         users[username] = user.copy(username = username)
     }
 
-    override fun deleteUser(username: String) {
+    override suspend fun deleteUser(username: String) {
         users.remove(username) ?: throw NotFoundException("User not found: $username")
     }
 }

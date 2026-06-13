@@ -11,6 +11,7 @@ import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 
@@ -38,6 +39,8 @@ class StoreApiTest {
     fun `getInventory returns empty map initially`() = testApp {
         val resp = client.get("/api/v3/store/inventory")
         assertEquals(HttpStatusCode.OK, resp.status)
+        val map = json.decodeFromString<Map<String, Int>>(resp.bodyAsText())
+        assertTrue(map.isEmpty())
     }
 
     @Test
@@ -50,6 +53,30 @@ class StoreApiTest {
         val map = json.decodeFromString<Map<String, Int>>(resp.bodyAsText())
         assertEquals(2, map["available"])
         assertEquals(1, map["sold"])
+        assertEquals(null, map["pending"])
+    }
+
+    @Test
+    fun `getInventory counts all statuses`() = testApp {
+        postPet(Pet(name = "A", photoUrls = listOf("u"), status = Pet.Status.available))
+        postPet(Pet(name = "B", photoUrls = listOf("u"), status = Pet.Status.sold))
+        postPet(Pet(name = "C", photoUrls = listOf("u"), status = Pet.Status.pending))
+        val resp = client.get("/api/v3/store/inventory")
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val map = json.decodeFromString<Map<String, Int>>(resp.bodyAsText())
+        assertEquals(1, map["available"])
+        assertEquals(1, map["sold"])
+        assertEquals(1, map["pending"])
+        assertEquals(3, map.values.sum())
+    }
+
+    @Test
+    fun `getInventory excludes pets with null status`() = testApp {
+        postPet(Pet(name = "NullStatus", photoUrls = listOf("u"), status = null))
+        val resp = client.get("/api/v3/store/inventory")
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val map = json.decodeFromString<Map<String, Int>>(resp.bodyAsText())
+        assertTrue(map.isEmpty())
     }
 
     @Test
@@ -59,6 +86,26 @@ class StoreApiTest {
         val body = json.decodeFromString<Order>(resp.bodyAsText())
         assertNotNull(body.id)
         assertEquals(Order.Status.placed, body.status)
+        assertEquals(1L, body.petId)
+        assertEquals(2, body.quantity)
+    }
+
+    @Test
+    fun `placeOrder assigns sequential ids`() = testApp {
+        val o1 = json.decodeFromString<Order>(placeOrder(Order(petId = 1L, quantity = 1)).bodyAsText())
+        val o2 = json.decodeFromString<Order>(placeOrder(Order(petId = 2L, quantity = 1)).bodyAsText())
+        assertTrue(o2.id!! > o1.id!!)
+    }
+
+    @Test
+    fun `placeOrder preserves all fields`() = testApp {
+        val resp = placeOrder(Order(petId = 7L, quantity = 3, status = Order.Status.approved, complete = true))
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val body = json.decodeFromString<Order>(resp.bodyAsText())
+        assertEquals(7L, body.petId)
+        assertEquals(3, body.quantity)
+        assertEquals(Order.Status.approved, body.status)
+        assertEquals(true, body.complete)
     }
 
     @Test
@@ -71,9 +118,13 @@ class StoreApiTest {
         val placed = json.decodeFromString<Order>(
             placeOrder(Order(petId = 5L, quantity = 1, status = Order.Status.placed)).bodyAsText()
         )
-        val fetched = json.decodeFromString<Order>(client.get("/api/v3/store/order/${placed.id}").bodyAsText())
+        val resp = client.get("/api/v3/store/order/${placed.id}")
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val fetched = json.decodeFromString<Order>(resp.bodyAsText())
         assertEquals(placed.id, fetched.id)
         assertEquals(5L, fetched.petId)
+        assertEquals(1, fetched.quantity)
+        assertEquals(Order.Status.placed, fetched.status)
     }
 
     @Test
@@ -88,5 +139,22 @@ class StoreApiTest {
     @Test
     fun `deleteOrder returns 404 for missing`() = testApp {
         assertEquals(HttpStatusCode.NotFound, client.delete("/api/v3/store/order/9999").status)
+    }
+
+    @Test
+    fun `inventory count increases correctly`() = testApp {
+        // First add - creates key with count 1
+        postPet(Pet(name = "A", photoUrls = listOf("u"), status = Pet.Status.available))
+        val map1 = json.decodeFromString<Map<String, Int>>(
+            client.get("/api/v3/store/inventory").bodyAsText()
+        )
+        assertEquals(1, map1["available"])
+
+        // Second add - count should be 2, not some other value
+        postPet(Pet(name = "B", photoUrls = listOf("u"), status = Pet.Status.available))
+        val map2 = json.decodeFromString<Map<String, Int>>(
+            client.get("/api/v3/store/inventory").bodyAsText()
+        )
+        assertEquals(2, map2["available"])
     }
 }

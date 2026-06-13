@@ -54,6 +54,19 @@ class UserRepositoryTest extends TestCase
         self::assertGreaterThan($u1['id'], $u2['id']);
     }
 
+    public function testFirstUserIdIsOne(): void
+    {
+        $user = $this->repo->createUser(['username' => 'firstuser', 'password' => 'pw']);
+        self::assertSame(1, $user['id']);
+    }
+
+    public function testUserIdsAreConsecutive(): void
+    {
+        $u1 = $this->repo->createUser(['username' => 'ua', 'password' => 'pw']);
+        $u2 = $this->repo->createUser(['username' => 'ub', 'password' => 'pw']);
+        self::assertSame($u1['id'] + 1, $u2['id']);
+    }
+
     // ── getUserByName ─────────────────────────────────────────────────────
 
     public function testGetUserByNameReturnsCorrectUser(): void
@@ -114,6 +127,13 @@ class UserRepositoryTest extends TestCase
         $token = $this->repo->loginUser('hal', 'hal123');
         self::assertNotNull($token);
         self::assertStringContainsString('hal', $token);
+    }
+
+    public function testLoginUserTokenHasCorrectFormat(): void
+    {
+        $this->repo->createUser(['username' => 'tokenuser', 'password' => 'pass']);
+        $token = $this->repo->loginUser('tokenuser', 'pass');
+        self::assertSame('logged-in-token-tokenuser', $token);
     }
 
     public function testLoginUserReturnsNullForWrongPassword(): void

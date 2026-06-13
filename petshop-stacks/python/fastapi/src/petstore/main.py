@@ -14,6 +14,7 @@
 
 
 from fastapi import FastAPI
+from fastapi.responses import ORJSONResponse
 
 from petstore.apis.pet_api import router as PetApiRouter
 from petstore.apis.store_api import router as StoreApiRouter
@@ -23,6 +24,7 @@ app = FastAPI(
     title="Swagger Petstore - OpenAPI 3.1",
     description="This is a sample Pet Store Server based on the OpenAPI 3.1 specification.  You can find out more about Swagger at [https://swagger.io](https://swagger.io). In the third iteration of the pet store, we&#39;ve switched to the design first approach! You can now help us improve the API whether it&#39;s by making changes to the definition itself or to the code. That way, with time, we can improve the API in general, and expose some of the new features in OAS3.  Some useful links: - [The Pet Store repository](https://github.com/swagger-api/swagger-petstore) - [The source API definition for the Pet Store](https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml)",
     version="1.0.12",
+    default_response_class=ORJSONResponse,
 )
 
 app.include_router(PetApiRouter)

@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json.Converters;
+using Npgsql;
 using Newtonsoft.Json.Serialization;
 using Petstore.Authentication;
 using Petstore.Filters;
@@ -58,9 +59,18 @@ namespace Petstore
                 StringComparison.OrdinalIgnoreCase);
 
             if (useInMemory)
+            {
                 services.AddSingleton<IPetstoreRepository, InMemoryPetstoreRepository>();
+            }
             else
+            {
+                // Single shared NpgsqlDataSource (one connection pool for the app);
+                // registered via factory so it is only created when the Postgres
+                // repository is actually resolved. Multiplexing is NOT enabled.
+                services.AddSingleton(_ =>
+                    NpgsqlDataSource.Create(PostgresPetstoreRepository.BuildConnectionString()));
                 services.AddSingleton<IPetstoreRepository, PostgresPetstoreRepository>();
+            }
 
             services.AddTransient<IAuthorizationHandler, ApiKeyRequirementHandler>();
             services.AddAuthorization(authConfig =>

@@ -126,11 +126,12 @@ export default function () {
   const findRes = http.get(url("/pet/findByStatus?status=available"), { headers: HEADERS });
   check(findRes, { "findByStatus 200": (r) => r.status === 200 });
 
-  // 5. Upload a minimal file (raw bytes)
+  // 5. Upload a minimal file (raw bytes). Keep auth/api_key headers so stacks
+  // that enforce security on uploadImage (e.g. Python's OAuth2 stub) don't 403.
   const fileRes = http.post(
     url(`/pet/${petId}/uploadImage`),
     "fake-image-bytes",
-    { headers: { "Content-Type": "application/octet-stream" } }
+    { headers: { ...HEADERS, "Content-Type": "application/octet-stream" } }
   );
   // 200 or 415 are both acceptable depending on implementation
   check(fileRes, { "uploadFile 2xx/4xx": (r) => r.status < 500 });

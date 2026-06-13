@@ -56,13 +56,15 @@ The server starts on `http://127.0.0.1:8080`. All routes are under `/api/v3`.
 
 | Path | Purpose |
 |---|---|
-| `src/` | **Generated — do not edit** (except known patches below). Models, HTTP router, API trait definitions. |
+| `src/` | **Generated — do not edit** (except known patches and the two helper modules below). Models, HTTP router, API trait definitions. |
 | `src/lib.rs` | `Api<C>` trait + all `*Response` enums. |
 | `src/models.rs` | Generated Petstore DTOs (`Pet`, `Order`, `User`, etc.). |
 | `src/server/mod.rs` | Generated HTTP dispatch layer (hyper + regex routing). **Hand-patched** — see notes below. |
+| `src/helpers.rs` | **Hand-written.** Pure row-to-model helpers: `row_to_pet`, `row_to_order`, `row_to_user`. Unit-tested; mutation-tested by cargo-mutants. |
+| `src/db_config.rs` | **Hand-written.** Pure DSN and pool-size helpers: `build_dsn`, `pool_max_connections`. Unit-tested; mutation-tested by cargo-mutants. |
 | `examples/server/main.rs` | Binary entry point; builds the pool and starts the server. |
-| `examples/server/server.rs` | **Implemented `Api` trait** — all 19 CRUD operations with sqlx. |
-| `examples/server/db.rs` | Pool factory (`create_pool()`) and DSN resolution from env. |
+| `examples/server/server.rs` | **Implemented `Api` trait** — all 19 CRUD operations with sqlx. Uses `petstore_server::helpers` for row conversions. |
+| `examples/server/db.rs` | Pool factory (`create_pool()`); delegates DSN/pool-size logic to `petstore_server::db_config`. |
 | `examples/server/server_auth.rs` | JWT bearer auth helpers (generated). |
 
 ### Patches to `src/server/mod.rs`
@@ -97,26 +99,31 @@ if the file is ever regenerated:
 
 ## Mutation Testing
 
-[cargo-mutants](https://mutants.rs) is configured in `mutants.toml`.
-Generated code under `src/` and `bin/` is excluded; only the hand-written
-implementation (`examples/server/server.rs`, `db.rs`) is mutated.
-The `#[cfg(test)]` unit tests in those files run without a live database.
+[cargo-mutants](https://mutants.rs) is configured in `.cargo/mutants.toml`
+(which supersedes the root-level `mutants.toml`).  Only the two hand-written
+src/ modules are mutated; all generated code is excluded.
 
 ```bash
 # Install (one time):
 cargo install cargo-mutants
 
-# Run from rust/ (produces mutants.out/ with per-mutant results):
-cargo mutants
-
-# Faster: limit to the hand-written example and run 4 jobs in parallel:
-cargo mutants --jobs 4 --file examples/server/server.rs --file examples/server/db.rs
+# Run (produces mutants.out/ with per-mutant results):
+cargo mutants --jobs 4
 ```
+
+**How the config works**: cargo-mutants only discovers `lib` and `bin` Cargo
+targets, not `example` targets.  The pure helper logic was therefore extracted
+from `examples/server/` into `src/helpers.rs` and `src/db_config.rs` so
+cargo-mutants can find, mutate, and test it.  `.cargo/mutants.toml` contains
+`examine_globs = ["src/helpers.rs", "src/db_config.rs"]` to focus the run.
 
 `cargo mutants` compiles and tests each mutant in a temporary workspace copy.
 Surviving mutants are listed in `mutants.out/missed.txt`. A survivor means no
 test caught the change — either add a targeted unit test or confirm it is
 equivalent.
+
+**Last recorded score: 100 % (5 caught / 5 viable, 5 unviable due to missing
+`Default` impl on model types and impossible u32 comparisons).**
 
 ## Verification
 

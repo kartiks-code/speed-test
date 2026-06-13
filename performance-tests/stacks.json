@@ -205,7 +205,10 @@
       "POSTGRES_PASSWORD": "mypassword",
       "POSTGRES_DB": "ruby-rails"
     },
-    "notes": "Uses RAILS_ENV=development to avoid ActionCable eager-load error in the generated production config. entrypoint_override bypasses docker-entrypoint.sh which calls db:migrate (fails without ActiveRecord). Dockerfile.optimized already sets CMD directly and uses production — it may still fail on ActionCable; handled via same entrypoint_override."
+    "env_optimized": {
+      "RAILS_ENV": "production"
+    },
+    "notes": "Naive stays RAILS_ENV=development; optimized runs RAILS_ENV=production (via env_optimized) with eager loading — the generated ActionCable/ActiveJob/ActionMailer/ActiveRecord stubs that crashed production eager loading were removed from the app. SECRET_KEY_BASE comes from the RAILS_SECRET_KEY_BASE injection run.sh already does. entrypoint_override bypasses docker-entrypoint.sh which calls db:migrate (fails without ActiveRecord)."
   },
   {
     "id": "ktor",

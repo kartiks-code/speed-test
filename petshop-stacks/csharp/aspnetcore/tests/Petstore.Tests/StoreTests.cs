@@ -99,5 +99,37 @@ namespace Petstore.Tests
             repo.PlaceOrder(updated);
             Assert.Equal(99, repo.GetOrderById(10).Quantity);
         }
+
+        // ── ID sequencing: kills lines 120, 121, 122 mutations ───────────────────
+
+        [Fact]
+        public void PlaceOrder_AutoAssignsSequentialIds()
+        {
+            var repo = CreateRepo();
+            var o1 = repo.PlaceOrder(SampleOrder(0));
+            var o2 = repo.PlaceOrder(SampleOrder(0));
+            Assert.Equal(1, o1.Id);
+            Assert.Equal(2, o2.Id);
+        }
+
+        [Fact]
+        public void PlaceOrder_SetsSequenceBeyondExplicitId()
+        {
+            // Kills: line 121 (>= vs > and negation), line 122 (+1 vs -1)
+            var repo = CreateRepo();
+            repo.PlaceOrder(SampleOrder(5));
+            var auto = repo.PlaceOrder(SampleOrder(0));
+            Assert.Equal(6, auto.Id);
+        }
+
+        [Fact]
+        public void PlaceOrder_SetsSequenceWhenExplicitIdEqualsNextId()
+        {
+            // Kills: line 121 (>= vs >) — only differs when Id == _nextOrderId (both start at 1)
+            var repo = CreateRepo();
+            repo.PlaceOrder(SampleOrder(1));
+            var auto = repo.PlaceOrder(SampleOrder(0));
+            Assert.Equal(2, auto.Id);
+        }
     }
 }

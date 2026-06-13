@@ -1,6 +1,7 @@
 package org.openapitools.server.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
@@ -39,7 +40,9 @@ class StoreServiceImplTest {
 
     @Test
     void deleteOrderDelegatesToOrderRepository() {
-        service.deleteOrder(11L);
+        Response response = service.deleteOrder(11L);
+        assertNotNull(response);
+        assertEquals(200, response.getStatus());
         verify(orderRepo).delete(11L);
         verifyNoInteractions(petRepo);
     }

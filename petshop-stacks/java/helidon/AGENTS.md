@@ -81,6 +81,10 @@ A surviving mutant means no test distinguishes the mutated bytecode from the
 original. Fix survivors by adding a sharper assertion or confirm they are
 equivalent mutations.
 
+Current mutation score: **91%** (166/183 killed, 17 no-coverage, 0 survivors, 100% test strength).
+The 17 no-coverage mutations are in JDBC paths reachable only via integration tests
+(e.g. `savePhoto` JDBC parameter binding, `getInventory` null-status branch).
+
 ## Docker
 
 - `Dockerfile` (naive) and `Dockerfile.optimized` build on Temurin 25.

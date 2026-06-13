@@ -95,6 +95,7 @@ Each entry is an object with these fields:
 | `readiness_path` | yes | Path appended to `http://<container>:8080` for the readiness probe |
 | `readiness_timeout` | no | Seconds to wait for readiness (default: `READINESS_TIMEOUT` env var, default 90) |
 | `env` | yes | Object of env vars injected into the container; use `PLACEHOLDER_*` values to omit a key at runtime |
+| `env_optimized` | no | Object of env vars merged **over** `env` for the `optimized` variant only (keys in `env_optimized` win). Absent = optimized uses `env` unchanged. Example: Rails sets `{"RAILS_ENV": "production"}` here |
 | `auth_header` | no | Value for the `AUTH_HEADER` env var passed to k6 (e.g. `"Bearer benchmark-token"`) |
 | `entrypoint_override` | no | Replaces the container `ENTRYPOINT` |
 | `cmd_override` | no | JSON array replacing the container `CMD` |
@@ -182,7 +183,7 @@ These are in place; do not revert them.
 
 **Node.js — api_key header.** `express-openapi-validator` enforces the `api_key` security scheme. `crud.js` always includes `"api_key": "benchmark"` in headers for all requests.
 
-**Rails — development mode + entrypoint override.** The generated `docker-entrypoint.sh` calls `db:migrate` (fails without ActiveRecord) and `RAILS_ENV=production` triggers an ActionCable eager-load error. `stacks.json` sets `entrypoint_override: "bin/rails"` and `cmd_override: ["server", "-b", "0.0.0.0", "-p", "8080"]` to bypass both. `RAILS_ENV=development` avoids the ActionCable issue.
+**Rails — entrypoint override + per-variant env.** The generated `docker-entrypoint.sh` calls `db:migrate` (fails without ActiveRecord); `stacks.json` sets `entrypoint_override: "bin/rails"` and `cmd_override: ["server", "-b", "0.0.0.0", "-p", "8080"]` to bypass it. The naive variant runs `RAILS_ENV=development`; the optimized variant runs `RAILS_ENV=production` (via `env_optimized`) with eager loading — the generated ActionCable/ActiveJob/ActionMailer/ActiveRecord stubs that used to crash production eager loading were removed from the app. The optimized variant needs `RAILS_SECRET_KEY_BASE` in the caller's environment (`run.sh` injects it as `SECRET_KEY_BASE`).
 
 **JVM stacks — readiness timeout.** Spring Boot, Helidon, Quarkus, Ktor, and Phoenix take 2–3 minutes to build and start. All five have `"readiness_timeout": 120` in `stacks.json`.
 

@@ -20,6 +20,9 @@ pub const API_VERSION: &str = "1.0.12";
 mod auth;
 pub use auth::{AuthenticationApi, Claims};
 
+pub mod helpers;
+pub mod db_config;
+
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[must_use]

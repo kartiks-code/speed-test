@@ -1,5 +1,6 @@
-import json
 from typing import List, Optional, Tuple, Union
+
+import orjson
 
 from fastapi import HTTPException
 
@@ -27,20 +28,20 @@ def _row_to_pet(row) -> Pet:
         # category is stored as TEXT containing JSON
         cat_data = row["category"]
         if isinstance(cat_data, str):
-            cat_data = json.loads(cat_data)
+            cat_data = orjson.loads(cat_data)
         category = Category.from_dict(cat_data)
 
     tags = None
     if row["tags"] is not None:
-        # tags is a JSON column, decoded to Python list by asyncpg codec
+        # tags is a JSON column, decoded to a Python list by the asyncpg codec
         tags_data = row["tags"]
         if isinstance(tags_data, str):
-            tags_data = json.loads(tags_data)
+            tags_data = orjson.loads(tags_data)
         tags = [Tag.from_dict(t) for t in tags_data]
 
     photo_urls = row["photo_urls"]
     if isinstance(photo_urls, str):
-        photo_urls = json.loads(photo_urls)
+        photo_urls = orjson.loads(photo_urls)
 
     return Pet(
         id=row["id"],
@@ -63,11 +64,16 @@ class PetApiImpl(BasePetApi):
             else:
                 pet_id = pet.id
 
+            # category is a TEXT column holding a JSON string; photo_urls and
+            # tags are JSON columns encoded by the asyncpg orjson codec, so
+            # they are passed as Python objects.
             category_json = (
-                json.dumps(pet.category.to_dict()) if pet.category else None
+                orjson.dumps(pet.category.to_dict()).decode()
+                if pet.category
+                else None
             )
-            tags_json = (
-                json.dumps([t.to_dict() for t in pet.tags]) if pet.tags else None
+            tags_value = (
+                [t.to_dict() for t in pet.tags] if pet.tags else None
             )
 
             row = await conn.fetchrow(
@@ -85,8 +91,8 @@ class PetApiImpl(BasePetApi):
                 pet_id,
                 pet.name,
                 category_json,
-                json.dumps(pet.photo_urls),
-                tags_json,
+                pet.photo_urls,
+                tags_value,
                 pet.status,
             )
             return _row_to_pet(row)
@@ -106,10 +112,12 @@ class PetApiImpl(BasePetApi):
                 raise HTTPException(status_code=404, detail="Pet not found")
 
             category_json = (
-                json.dumps(pet.category.to_dict()) if pet.category else None
+                orjson.dumps(pet.category.to_dict()).decode()
+                if pet.category
+                else None
             )
-            tags_json = (
-                json.dumps([t.to_dict() for t in pet.tags]) if pet.tags else None
+            tags_value = (
+                [t.to_dict() for t in pet.tags] if pet.tags else None
             )
 
             row = await conn.fetchrow(
@@ -126,8 +134,8 @@ class PetApiImpl(BasePetApi):
                 pet.id,
                 pet.name,
                 category_json,
-                json.dumps(pet.photo_urls),
-                tags_json,
+                pet.photo_urls,
+                tags_value,
                 pet.status,
             )
             return _row_to_pet(row)

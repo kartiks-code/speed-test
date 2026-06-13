@@ -4,7 +4,7 @@ defmodule Petstore.PetTest do
   alias Petstore.InMemoryRepository, as: Repo
 
   setup do
-    {:ok, _} = start_supervised(Repo)
+    Repo.reset()
     :ok
   end
 
@@ -143,6 +143,59 @@ defmodule Petstore.PetTest do
 
     test "returns not_found for missing pet" do
       assert {:error, :not_found} = Repo.upload_file(9999, "data")
+    end
+
+    test "reports correct byte count for empty binary" do
+      Repo.add_pet(%{"id" => 1, "name" => "Test", "status" => "available"})
+      {:ok, response} = Repo.upload_file(1, "")
+      assert response["message"] =~ "0 bytes"
+    end
+  end
+
+  describe "add_pet/1 with atom keys" do
+    test "accepts atom keys and converts them" do
+      {:ok, pet} = Repo.add_pet(%{id: 55, name: "AtomKeyed", status: "available"})
+      assert pet["id"] == 55
+      assert pet["name"] == "AtomKeyed"
+    end
+  end
+
+  describe "add_pet/1 with id = 0" do
+    test "assigns a new ID when id is 0" do
+      {:ok, pet} = Repo.add_pet(%{"id" => 0, "name" => "ZeroId"})
+      assert pet["id"] != 0
+      assert pet["id"] >= 1
+    end
+  end
+
+  describe "find_pets_by_tags/1 with multiple tags" do
+    test "returns pets matching any of the tags" do
+      Repo.add_pet(%{"id" => 1, "name" => "A", "tags" => [%{"name" => "cute"}]})
+      Repo.add_pet(%{"id" => 2, "name" => "B", "tags" => [%{"name" => "wild"}]})
+      Repo.add_pet(%{"id" => 3, "name" => "C", "tags" => [%{"name" => "other"}]})
+
+      {:ok, pets} = Repo.find_pets_by_tags(["cute", "wild"])
+      assert length(pets) == 2
+    end
+  end
+
+  describe "update_pet_with_form/3 ignores nil status" do
+    test "preserves existing status when status is nil" do
+      Repo.add_pet(%{"id" => 1, "name" => "Test", "status" => "available"})
+      {:ok, pet} = Repo.update_pet_with_form(1, "New", nil)
+      assert pet["status"] == "available"
+    end
+  end
+
+  describe "normalize_pet preserves category" do
+    test "stores and retrieves category field" do
+      {:ok, pet} = Repo.add_pet(%{
+        "id" => 1,
+        "name" => "Fluffy",
+        "status" => "available",
+        "category" => %{"id" => 1, "name" => "Dogs"}
+      })
+      assert pet["category"] == %{"id" => 1, "name" => "Dogs"}
     end
   end
 end

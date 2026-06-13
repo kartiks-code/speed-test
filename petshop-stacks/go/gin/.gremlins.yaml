@@ -1,9 +1,27 @@
 # gremlins configuration (https://gremlins.dev)
 # Install: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
-# Run:     gremlins unleash ./go/...
 #
-# Only the hand-written petstore package (./go/) is mutated.
-# The test suite is DB-free (mock store), so tests run fast per mutant.
+# Run (from petshop-stacks/go/gin/):
+#   gremlins unleash --coverpkg github.com/GIT_USER_ID/GIT_REPO_ID/go \
+#                    --integration --timeout-coefficient 100 ./go
+#
+# Flag explanations:
+#   --integration         Run ALL tests per mutant (not just per-line-covered tests).
+#                         Without this, gremlins' coverage-based test selection misses
+#                         tests for helper functions, causing 90%+ of kills to appear
+#                         as "LIVED". Required for accurate results on this codebase.
+#   --timeout-coefficient Per-mutant compile+run takes ~1-2 s. The baseline test run
+#                         is ~40 ms (cached), so the default 10x = 400 ms is too short.
+#                         100x (~4 s) gives a comfortable budget per mutant.
+#   --coverpkg …/go       Restrict coverage instrumentation to the hand-written package.
+#
+# Current result (expected):
+#   Killed: 59  Lived: 1  Not covered: 52
+#   Test efficacy: 98.33%
+#   The 1 surviving mutant (api_helpers.go:45 `if value != ""`) is equivalent:
+#   compactStrings() filters empty strings, so inverting the guard produces
+#   identical runtime behaviour.
+#
 threshold:
   mutation: 0     # report all; increase (0–100) to gate CI on a minimum score
   coverage: 0     # minimum coverage required before mutation starts

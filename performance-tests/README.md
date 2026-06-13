@@ -217,11 +217,11 @@ Then run:
 LARAVEL_APP_KEY="base64:abc123..." VUS=20 DURATION=60s ./run.sh laravel
 ```
 
-### Rails (Ruby) — development mode
+### Rails (Ruby) — per-variant environment
 
-The generated `docker-entrypoint.sh` calls `bin/rails db:migrate`, which fails because the app does not use ActiveRecord. `stacks.json` bypasses this via `entrypoint_override`/`cmd_override`. The app runs in `RAILS_ENV=development` to avoid an ActionCable eager-load crash in the generated production config.
+The generated `docker-entrypoint.sh` calls `bin/rails db:migrate`, which fails because the app does not use ActiveRecord. `stacks.json` bypasses this via `entrypoint_override`/`cmd_override`. The naive variant runs in `RAILS_ENV=development`; the optimized variant runs in `RAILS_ENV=production` with eager loading (set via the `env_optimized` field in `stacks.json`, which is merged over `env` for optimized runs only).
 
-If you run the optimized variant you may also need `RAILS_SECRET_KEY_BASE`:
+The optimized variant requires `RAILS_SECRET_KEY_BASE`:
 
 ```bash
 export RAILS_SECRET_KEY_BASE=$(ruby -rsecurerandom -e 'puts SecureRandom.hex(64)')

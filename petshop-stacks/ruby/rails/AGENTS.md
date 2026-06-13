@@ -29,6 +29,11 @@ Shared PostgreSQL at `localhost:5434`. Database: `ruby-rails`.
 
 Set these or pass `DATABASE_URL` to override.
 
+### Rails environments
+
+- Development (default) works out of the box.
+- Production (`RAILS_ENV=production`) eager-loads the app and requires `SECRET_KEY_BASE`. It boots cleanly since the unused generated ActionCable/ActiveJob/ActionMailer/ActiveRecord stubs were removed (see below). `config/environments/production.rb` honors a comma-separated `RAILS_ALLOWED_HOSTS` env var for host authorization (empty/unset = host checking disabled). The benchmark harness runs the optimized variant in production via `env_optimized` in `performance-tests/stacks.json`.
+
 ### Tuning environment variables
 
 Defaults preserve single-mode, info-logging behavior; `Dockerfile.optimized` sets
@@ -36,7 +41,7 @@ the tuned values for benchmarks.
 
 | Variable             | Default | `Dockerfile.optimized` | Effect |
 |----------------------|---------|------------------------|--------|
-| `WEB_CONCURRENCY`    | `0`     | `2`                    | Puma worker processes (`0` = single mode). `preload_app!` is disabled because the app runs in the development env where preload conflicts with the reloader. |
+| `WEB_CONCURRENCY`    | `0`     | `2`                    | Puma worker processes (`0` = single mode). `preload_app!` is disabled because the naive benchmark variant runs in the development env where preload conflicts with the reloader; it is also kept off in production (safe with 2 workers; enabling it there is a possible future tweak). |
 | `RAILS_MAX_THREADS`  | `5`     | `10`                   | Puma threads per worker. Threads hold thread-local PG connections, so max DB connections ≈ workers × threads. |
 | `RAILS_LOG_LEVEL`    | `info`  | `warn`                 | Rails log level (set in `config/application.rb`, also honored by `config/environments/production.rb`). |
 | `RUBY_YJIT_ENABLE`   | unset   | `1`                    | Enables YJIT. |
@@ -84,8 +89,9 @@ spec/
 | `lib/in_memory_petstore_repository.rb`       | Hand-written  |
 | `lib/petstore_errors.rb`                     | Hand-written  |
 | `spec/**/*`                                  | Hand-written  |
-| `app/models/*.rb` (generated stubs)          | Generated (unused; safe to ignore) |
 | `config/initializers/{backtrace,cors,...}.rb`| Generated (kept) |
+
+The generated stubs under `app/models/`, `app/jobs/`, `app/mailers/`, `app/channels/`, `app/views/`, and `config/cable.yml` have been **removed**: they referenced railties the app does not load (ActiveRecord, ActiveJob, ActionMailer, ActionCable — see the selective `require`s in `config/application.rb`) and crashed eager loading under `RAILS_ENV=production`. Do not restore them when regenerating.
 
 ## Schema / Persistence Conventions
 
@@ -115,6 +121,9 @@ bundle exec mutant run
 
 Targets `InMemoryPetstoreRepository`. `.mutant.yml` configures subjects and integration.
 Requires `gem 'mutant-rspec'` (in Gemfile dev/test group).
+
+Current mutation score: **88.86%** (1077/1212 killed).
+Remaining survivors are mostly equivalent mutations (`to_i` vs `to_int`, `Integer()` vs `to_i`, `.fetch` vs `[]` for existing keys, and error message string variations).
 
 ## Adding New Operations
 

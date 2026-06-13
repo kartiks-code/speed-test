@@ -14,7 +14,7 @@ petshop-stacks/python/fastapi/
     apis/            # Generated route handlers + base classes (do not edit)
     models/          # Generated Pydantic models (do not edit)
     db.py            # Lazy asyncpg connection pool + JSON codec setup
-    main.py          # FastAPI app factory (do not edit)
+    main.py          # FastAPI app factory (generated; hand-edited to set ORJSONResponse — preserve on regeneration)
     petstore/impl/   # Implementation classes — edit these
       pet_api_impl.py
       store_api_impl.py
@@ -113,12 +113,30 @@ The generated routers in `apis/` dispatch to subclasses of `BasePetApi`, `BaseSt
 
 The `db.py` module provides:
 - `get_pool()` — returns a shared `asyncpg.Pool`, creating it lazily on first call; sizes come from `ASYNCPG_POOL_MIN_SIZE`/`ASYNCPG_POOL_MAX_SIZE` (defaults 1/10)
-- JSON/JSONB codecs are registered so JSON-type columns round-trip as Python objects
+- JSON/JSONB codecs are registered (via `create_pool(init=...)`) using **orjson** so JSON-type columns round-trip as Python objects
+
+## orjson
+
+`orjson` (pinned in `requirements.txt`) is used in two places:
+
+- **Responses:** `main.py` sets `default_response_class=ORJSONResponse` on the
+  FastAPI app, so all route responses are serialized with orjson.
+- **Database JSON columns:** `db.py` registers `json`/`jsonb` type codecs on each
+  pooled connection (`encoder=lambda v: orjson.dumps(v).decode()`,
+  `decoder=orjson.loads`). The impl layer therefore passes **Python objects**
+  (lists/dicts) for `photo_urls` and `tags` parameters — do **not** pre-dump
+  them with `json.dumps`, or the codec will double-encode the string.
+  `pet.category` is the exception: it is a `TEXT` column, so the impl still
+  stores it as a JSON string (`orjson.dumps(...).decode()`) and decodes it with
+  `orjson.loads` on read, per the shared persistence conventions.
+
+The in-memory fake in `tests/conftest.py` mirrors this contract: pet
+`photo_urls`/`tags` flow through as Python objects, `category` as a string.
 
 ## Database Schema Notes
 
-- `pet.category` is a `TEXT` column storing a JSON object; read with `json.loads`.
-- `pet.photo_urls` and `pet.tags` are `JSON` columns; decoded automatically by the asyncpg codec.
+- `pet.category` is a `TEXT` column storing a JSON object; read with `orjson.loads`.
+- `pet.photo_urls` and `pet.tags` are `JSON` columns; written as Python objects and decoded automatically by the asyncpg orjson codec.
 - `pet.status` and `order.status` are PostgreSQL enum types (`pet_status`, `order_status`); use `$n::pet_status` / `$n::order_status` when writing.
 - `user.username` is the primary key for the `user` table.
 

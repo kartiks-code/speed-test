@@ -62,7 +62,7 @@ Every project (except Rust which has limited test coverage) has a mutation testi
 | `petshop-stacks/java/quarkus` | [PIT](https://pitest.org) | `./gradlew pitest` |
 | `petshop-stacks/nodejs/express` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (after `npm install`) |
 | `petshop-stacks/python/fastapi` | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
-| `petshop-stacks/go/gin` | [gremlins](https://gremlins.dev) | `gremlins unleash ./go/...` |
+| `petshop-stacks/go/gin` | [gremlins](https://gremlins.dev) | `gremlins unleash --coverpkg github.com/GIT_USER_ID/GIT_REPO_ID/go --integration --timeout-coefficient 100 ./go` |
 | `petshop-stacks/rust/hyper` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
 | `petshop-stacks/csharp/aspnetcore` | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet stryker` |
 | `petshop-stacks/php/laravel` | [Infection](https://infection.github.io) | `./vendor/bin/infection` |

@@ -38,6 +38,14 @@ docker compose up -d
 | `USE_IN_MEMORY_DB` | `false` | Set `true` to bypass Postgres (tests / dev) |
 | `PG_MAX_POOL_SIZE` | *(unset)* | When set, appends `Maximum Pool Size=<value>` to the connection string (including `DATABASE_URL`, unless it already specifies a pool size). Unset = Npgsql default (100). `Dockerfile.optimized` sets `200` for the benchmark harness. |
 
+### Database access design
+
+The app uses a **singleton `NpgsqlDataSource`** (one shared connection pool) rather than constructing `NpgsqlConnection` objects from a raw connection string per operation:
+
+- `Startup.ConfigureServices` registers `NpgsqlDataSource.Create(PostgresPetstoreRepository.BuildConnectionString())` as a singleton **via a lazy factory**, and only in the Postgres branch — when `USE_IN_MEMORY_DB=true` no data source is registered or created. Multiplexing is **not** enabled.
+- `PostgresPetstoreRepository` takes the `NpgsqlDataSource` via constructor injection and calls `dataSource.OpenConnection()` per operation (connections are returned to the pool on dispose).
+- Connection-string construction lives in the public static `PostgresPetstoreRepository.BuildConnectionString()` / `ApplyPoolSize()` helpers (env-var handling above, including `PG_MAX_POOL_SIZE`), keeping it unit-testable without a database.
+
 ### Benchmark tuning (`Dockerfile.optimized` only)
 
 The optimized Docker image additionally sets `ASPNETCORE_ENVIRONMENT=Production`, `Logging__LogLevel__Default=Warning`, `Logging__LogLevel__Microsoft.AspNetCore=Warning`, and `PG_MAX_POOL_SIZE=200` (pool of 200 handles up to 500 k6 VUs via queueing under Postgres `max_connections=500`). The naive `Dockerfile` is unchanged, so defaults preserve current behavior.
@@ -121,7 +129,8 @@ All implementations must be consistent with the shared database schema:
 ## Mutation Testing
 
 [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) is configured in `stryker-config.json`.
-It targets `InMemoryPetstoreRepository.cs` and `PostgresPetstoreRepository.cs`, running the xUnit test suite (which uses the in-memory repo, so no DB is required).
+It targets `InMemoryPetstoreRepository.cs` (the in-memory implementation), running the xUnit test suite (no DB required).
+`PostgresPetstoreRepository.cs` is excluded from the mutate scope because it requires a live Postgres connection and its mutants would all be NoCoverage without one.
 
 ```bash
 dotnet tool install -g dotnet-stryker   # one-time install
@@ -129,6 +138,18 @@ dotnet stryker --config-file stryker-config.json
 ```
 
 HTML report is written to `StrykerOutput/reports/mutation-report.html`.
+
+**Current mutation score: 100% (51/51 mutants killed)**  
+Achieved by 52 xUnit tests in `tests/Petstore.Tests/` (up from 35).
+
+Key mutations covered:
+- ID auto-increment sequencing (AddPet, PlaceOrder, CreateUser) — equality boundary and arithmetic
+- `FindPetsByTags` with empty list (`||` vs `&&`)
+- `CreateUsersWithListInput` with null/empty input (`||` vs `&&`)
+- `UploadFile` exact byte count (statement mutation on `CopyTo`)
+- `UpdateUser` return value (`true` vs `false`)
+- `StringToPetStatus("pending")` and `PetStatusToString(PendingEnum)` string mutations
+- `GetInventory` with invalid enum value (`?? "unknown"` null-coalescing)
 
 ## Verification Curl Examples
 

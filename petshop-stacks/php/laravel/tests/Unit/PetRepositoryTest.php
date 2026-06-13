@@ -53,6 +53,19 @@ class PetRepositoryTest extends TestCase
         self::assertGreaterThan($p1['id'], $p2['id']);
     }
 
+    public function testAddPetFirstIdIsOne(): void
+    {
+        $pet = $this->repo->addPet(['name' => 'First', 'photoUrls' => []]);
+        self::assertSame(1, $pet['id']);
+    }
+
+    public function testAddPetIdsAreConsecutive(): void
+    {
+        $p1 = $this->repo->addPet(['name' => 'A', 'photoUrls' => []]);
+        $p2 = $this->repo->addPet(['name' => 'B', 'photoUrls' => []]);
+        self::assertSame($p1['id'] + 1, $p2['id']);
+    }
+
     // ── updatePet ─────────────────────────────────────────────────────────
 
     public function testUpdatePetUpdatesExisting(): void
@@ -109,6 +122,18 @@ class PetRepositoryTest extends TestCase
         self::assertEmpty($result);
     }
 
+    public function testFindPetsByStatusReturnsIndexedArray(): void
+    {
+        $this->repo->addPet(['name' => 'Ax', 'photoUrls' => [], 'status' => 'available']);
+        $this->repo->addPet(['name' => 'Bx', 'photoUrls' => [], 'status' => 'pending']);
+        $this->repo->addPet(['name' => 'Cx', 'photoUrls' => [], 'status' => 'available']);
+        $result = $this->repo->findPetsByStatus('available');
+        self::assertArrayHasKey(0, $result);
+        self::assertArrayHasKey(1, $result);
+        self::assertSame('Ax', $result[0]['name']);
+        self::assertSame('Cx', $result[1]['name']);
+    }
+
     // ── findPetsByTags ────────────────────────────────────────────────────
 
     public function testFindPetsByTagsFiltersCorrectly(): void
@@ -126,6 +151,17 @@ class PetRepositoryTest extends TestCase
         $this->repo->addPet(['name' => 'B', 'photoUrls' => []]);
         $result = $this->repo->findPetsByTags([]);
         self::assertCount(2, $result);
+    }
+
+    public function testFindPetsByTagsEmptyTagsReturnsIndexedArray(): void
+    {
+        $this->repo->addPet(['name' => 'TagA', 'photoUrls' => []]);
+        $this->repo->addPet(['name' => 'TagB', 'photoUrls' => []]);
+        $result = $this->repo->findPetsByTags([]);
+        self::assertArrayHasKey(0, $result);
+        self::assertArrayHasKey(1, $result);
+        self::assertSame('TagA', $result[0]['name']);
+        self::assertSame('TagB', $result[1]['name']);
     }
 
     // ── updatePetWithForm ─────────────────────────────────────────────────

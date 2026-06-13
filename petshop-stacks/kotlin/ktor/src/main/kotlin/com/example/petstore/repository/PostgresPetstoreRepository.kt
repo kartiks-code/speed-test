@@ -3,6 +3,8 @@ package com.example.petstore.repository
 import com.example.petstore.models.*
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.postgresql.util.PGobject
@@ -10,6 +12,12 @@ import java.sql.Connection
 import java.sql.ResultSet
 import javax.sql.DataSource
 
+/**
+ * JDBC-backed repository. All public methods are suspend functions that shift
+ * the blocking JDBC work onto [Dispatchers.IO], so Ktor's Netty event-loop
+ * threads are never pinned during database I/O. Each method's JDBC work runs
+ * entirely within a single withContext(Dispatchers.IO) block.
+ */
 class PostgresPetstoreRepository(dataSource: DataSource? = null) : PetstoreRepository {
 
     private val ds: DataSource = dataSource ?: createDataSource()
@@ -20,77 +28,73 @@ class PostgresPetstoreRepository(dataSource: DataSource? = null) : PetstoreRepos
     // Pet
     // -------------------------------------------------------------------------
 
-    override fun addPet(pet: Pet): Pet {
+    override suspend fun addPet(pet: Pet): Pet = withContext(Dispatchers.IO) {
         conn().use { c ->
             val id = pet.id ?: nextId(c, "pet")
             val saved = pet.copy(id = id)
             upsertPet(c, saved)
-            return getPetById(id)!!
+            fetchPetById(id)!!
         }
     }
 
-    override fun updatePet(pet: Pet): Pet {
+    override suspend fun updatePet(pet: Pet): Pet {
         val id = pet.id ?: throw InvalidInputException("Pet id required for update")
-        conn().use { c ->
-            val existing = getPetById(id) ?: throw NotFoundException("Pet not found: $id")
-            upsertPet(c, existing.copy(
-                name = pet.name,
-                photoUrls = pet.photoUrls,
-                category = pet.category,
-                tags = pet.tags,
-                status = pet.status
-            ))
-            return getPetById(id)!!
+        return withContext(Dispatchers.IO) {
+            conn().use { c ->
+                val existing = fetchPetById(id) ?: throw NotFoundException("Pet not found: $id")
+                upsertPet(c, existing.copy(
+                    name = pet.name,
+                    photoUrls = pet.photoUrls,
+                    category = pet.category,
+                    tags = pet.tags,
+                    status = pet.status
+                ))
+                fetchPetById(id)!!
+            }
         }
     }
 
-    override fun findPetsByStatus(status: String): List<Pet> {
+    override suspend fun findPetsByStatus(status: String): List<Pet> = withContext(Dispatchers.IO) {
         conn().use { c ->
             c.prepareStatement(
                 "SELECT id, name, photo_urls, category, tags, status::text FROM pet WHERE status::text = ?"
             ).use { ps ->
                 ps.setString(1, status)
-                return ps.executeQuery().use { rs -> rs.toPetList() }
+                ps.executeQuery().use { rs -> rs.toPetList() }
             }
         }
     }
 
-    override fun findPetsByTags(tags: List<String>): List<Pet> {
+    override suspend fun findPetsByTags(tags: List<String>): List<Pet> = withContext(Dispatchers.IO) {
         conn().use { c ->
             c.prepareStatement(
                 "SELECT id, name, photo_urls, category, tags, status::text FROM pet"
             ).use { ps ->
                 val allPets = ps.executeQuery().use { rs -> rs.toPetList() }
-                return allPets.filter { pet ->
+                allPets.filter { pet ->
                     pet.tags?.any { tag -> tags.contains(tag.name) } == true
                 }
             }
         }
     }
 
-    override fun getPetById(petId: Long): Pet? {
-        conn().use { c ->
-            c.prepareStatement(
-                "SELECT id, name, photo_urls, category, tags, status::text FROM pet WHERE id = ?"
-            ).use { ps ->
-                ps.setLong(1, petId)
-                return ps.executeQuery().use { rs -> if (rs.next()) rs.toPet() else null }
-            }
+    override suspend fun getPetById(petId: Long): Pet? = withContext(Dispatchers.IO) {
+        fetchPetById(petId)
+    }
+
+    override suspend fun updatePetWithForm(petId: Long, name: String?, status: String?): Pet =
+        withContext(Dispatchers.IO) {
+            val existing = fetchPetById(petId) ?: throw NotFoundException("Pet not found: $petId")
+            val updated = existing.copy(
+                name = name ?: existing.name,
+                status = status?.let { s -> Pet.Status.entries.find { it.value == s } } ?: existing.status
+            )
+            conn().use { c -> upsertPet(c, updated) }
+            fetchPetById(petId)!!
         }
-    }
 
-    override fun updatePetWithForm(petId: Long, name: String?, status: String?): Pet {
-        val existing = getPetById(petId) ?: throw NotFoundException("Pet not found: $petId")
-        val updated = existing.copy(
-            name = name ?: existing.name,
-            status = status?.let { s -> Pet.Status.entries.find { it.value == s } } ?: existing.status
-        )
-        conn().use { c -> upsertPet(c, updated) }
-        return getPetById(petId)!!
-    }
-
-    override fun deletePet(petId: Long) {
-        getPetById(petId) ?: throw NotFoundException("Pet not found: $petId")
+    override suspend fun deletePet(petId: Long): Unit = withContext(Dispatchers.IO) {
+        fetchPetById(petId) ?: throw NotFoundException("Pet not found: $petId")
         conn().use { c ->
             c.prepareStatement("DELETE FROM pet WHERE id = ?").use { ps ->
                 ps.setLong(1, petId)
@@ -99,22 +103,35 @@ class PostgresPetstoreRepository(dataSource: DataSource? = null) : PetstoreRepos
         }
     }
 
-    override fun uploadFile(petId: Long, additionalMetadata: String?, bytes: ByteArray): ModelApiResponse {
-        getPetById(petId) ?: throw NotFoundException("Pet not found: $petId")
+    override suspend fun uploadFile(petId: Long, additionalMetadata: String?, bytes: ByteArray): ModelApiResponse =
+        withContext(Dispatchers.IO) {
+            fetchPetById(petId) ?: throw NotFoundException("Pet not found: $petId")
+            conn().use { c ->
+                val photoId = nextId(c, "pet_photo")
+                c.prepareStatement(
+                    "INSERT INTO pet_photo (id, pet_id, metadata, content) VALUES (?, ?, ?, ?) " +
+                        "ON CONFLICT (id) DO UPDATE SET content = excluded.content"
+                ).use { ps ->
+                    ps.setLong(1, photoId)
+                    ps.setLong(2, petId)
+                    ps.setString(3, additionalMetadata)
+                    ps.setBytes(4, bytes)
+                    ps.executeUpdate()
+                }
+            }
+            ModelApiResponse(code = 200, type = "unknown", message = "File uploaded: ${bytes.size} bytes")
+        }
+
+    /** Blocking lookup used internally so composite operations stay on the IO dispatcher thread. */
+    private fun fetchPetById(petId: Long): Pet? {
         conn().use { c ->
-            val photoId = nextId(c, "pet_photo")
             c.prepareStatement(
-                "INSERT INTO pet_photo (id, pet_id, metadata, content) VALUES (?, ?, ?, ?) " +
-                    "ON CONFLICT (id) DO UPDATE SET content = excluded.content"
+                "SELECT id, name, photo_urls, category, tags, status::text FROM pet WHERE id = ?"
             ).use { ps ->
-                ps.setLong(1, photoId)
-                ps.setLong(2, petId)
-                ps.setString(3, additionalMetadata)
-                ps.setBytes(4, bytes)
-                ps.executeUpdate()
+                ps.setLong(1, petId)
+                return ps.executeQuery().use { rs -> if (rs.next()) rs.toPet() else null }
             }
         }
-        return ModelApiResponse(code = 200, type = "unknown", message = "File uploaded: ${bytes.size} bytes")
     }
 
     private fun upsertPet(c: Connection, pet: Pet) {
@@ -142,7 +159,7 @@ class PostgresPetstoreRepository(dataSource: DataSource? = null) : PetstoreRepos
     // Store
     // -------------------------------------------------------------------------
 
-    override fun getInventory(): Map<String, Int> {
+    override suspend fun getInventory(): Map<String, Int> = withContext(Dispatchers.IO) {
         conn().use { c ->
             c.prepareStatement(
                 "SELECT status::text, COUNT(*) AS cnt FROM pet GROUP BY status"
@@ -153,37 +170,41 @@ class PostgresPetstoreRepository(dataSource: DataSource? = null) : PetstoreRepos
                         result[rs.getString("status")] = rs.getInt("cnt")
                     }
                 }
-                return result
+                result
             }
         }
     }
 
-    override fun placeOrder(order: Order): Order {
+    override suspend fun placeOrder(order: Order): Order = withContext(Dispatchers.IO) {
         conn().use { c ->
             val id = order.id ?: nextId(c, "\"order\"")
             val saved = order.copy(id = id)
             upsertOrder(c, saved)
-            return getOrderById(id)!!
+            fetchOrderById(id)!!
         }
     }
 
-    override fun getOrderById(orderId: Long): Order? {
+    override suspend fun getOrderById(orderId: Long): Order? = withContext(Dispatchers.IO) {
+        fetchOrderById(orderId)
+    }
+
+    override suspend fun deleteOrder(orderId: Long): Unit = withContext(Dispatchers.IO) {
+        fetchOrderById(orderId) ?: throw NotFoundException("Order not found: $orderId")
+        conn().use { c ->
+            c.prepareStatement("DELETE FROM \"order\" WHERE id = ?").use { ps ->
+                ps.setLong(1, orderId)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    private fun fetchOrderById(orderId: Long): Order? {
         conn().use { c ->
             c.prepareStatement(
                 "SELECT id, pet_id, quantity, ship_date, status::text, complete FROM \"order\" WHERE id = ?"
             ).use { ps ->
                 ps.setLong(1, orderId)
                 return ps.executeQuery().use { rs -> if (rs.next()) rs.toOrder() else null }
-            }
-        }
-    }
-
-    override fun deleteOrder(orderId: Long) {
-        getOrderById(orderId) ?: throw NotFoundException("Order not found: $orderId")
-        conn().use { c ->
-            c.prepareStatement("DELETE FROM \"order\" WHERE id = ?").use { ps ->
-                ps.setLong(1, orderId)
-                ps.executeUpdate()
             }
         }
     }
@@ -213,53 +234,57 @@ class PostgresPetstoreRepository(dataSource: DataSource? = null) : PetstoreRepos
     // User
     // -------------------------------------------------------------------------
 
-    override fun createUser(user: User): User {
+    override suspend fun createUser(user: User): User = withContext(Dispatchers.IO) {
         conn().use { c ->
             val id = user.id ?: nextId(c, "\"user\"")
             upsertUser(c, user.copy(id = id))
-            return getUserByName(user.username ?: "")!!
+            fetchUserByName(user.username ?: "")!!
         }
     }
 
-    override fun createUsersWithList(users: List<User>): User {
+    override suspend fun createUsersWithList(users: List<User>): User = withContext(Dispatchers.IO) {
         conn().use { c ->
             for (user in users) {
                 val id = user.id ?: nextId(c, "\"user\"")
                 upsertUser(c, user.copy(id = id))
             }
         }
-        return getUserByName(users.first().username ?: "")!!
+        fetchUserByName(users.first().username ?: "")!!
     }
 
-    override fun loginUser(username: String, password: String): String {
-        getUserByName(username) ?: throw NotFoundException("User not found: $username")
-        return "logged-in-$username"
+    override suspend fun loginUser(username: String, password: String): String = withContext(Dispatchers.IO) {
+        fetchUserByName(username) ?: throw NotFoundException("User not found: $username")
+        "logged-in-$username"
     }
 
-    override fun logoutUser() { /* stateless no-op */ }
+    override suspend fun logoutUser() { /* stateless no-op */ }
 
-    override fun getUserByName(username: String): User? {
+    override suspend fun getUserByName(username: String): User? = withContext(Dispatchers.IO) {
+        fetchUserByName(username)
+    }
+
+    override suspend fun updateUser(username: String, user: User): Unit = withContext(Dispatchers.IO) {
+        fetchUserByName(username) ?: throw NotFoundException("User not found: $username")
+        conn().use { c -> upsertUser(c, user.copy(username = username)) }
+    }
+
+    override suspend fun deleteUser(username: String): Unit = withContext(Dispatchers.IO) {
+        fetchUserByName(username) ?: throw NotFoundException("User not found: $username")
+        conn().use { c ->
+            c.prepareStatement("DELETE FROM \"user\" WHERE username = ?").use { ps ->
+                ps.setString(1, username)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    private fun fetchUserByName(username: String): User? {
         conn().use { c ->
             c.prepareStatement(
                 "SELECT id, username, first_name, last_name, email, password, phone, user_status FROM \"user\" WHERE username = ?"
             ).use { ps ->
                 ps.setString(1, username)
                 return ps.executeQuery().use { rs -> if (rs.next()) rs.toUser() else null }
-            }
-        }
-    }
-
-    override fun updateUser(username: String, user: User) {
-        getUserByName(username) ?: throw NotFoundException("User not found: $username")
-        conn().use { c -> upsertUser(c, user.copy(username = username)) }
-    }
-
-    override fun deleteUser(username: String) {
-        getUserByName(username) ?: throw NotFoundException("User not found: $username")
-        conn().use { c ->
-            c.prepareStatement("DELETE FROM \"user\" WHERE username = ?").use { ps ->
-                ps.setString(1, username)
-                ps.executeUpdate()
             }
         }
     }

@@ -68,6 +68,26 @@ docker run --rm -p 8080:8080 --network host \
   php:8.4-cli php artisan serve --host=0.0.0.0 --port=8080
 ```
 
+## Docker Benchmark Images
+
+Two Dockerfiles are used by `performance-tests/` (built with `--cpus 2 --memory 512m`, container listens on 8080):
+
+| File | Runtime | Notes |
+|------|---------|-------|
+| `Dockerfile` | `php artisan serve` (single-threaded) | Naive variant — do not "optimize" this one |
+| `Dockerfile.optimized` | **nginx + php-fpm** | Multi-worker; see architecture below |
+
+### Optimized runtime architecture
+
+- **Stage 1 (`deps`)**: `php:8.4-cli-alpine` + Composer; builds `pdo`, `pdo_pgsql`, `opcache` and an authoritative classmap autoloader. The compiled `.so` extensions are copied into the runtime stage — cli and fpm variants of the same `php:8.4-alpine` tag share an identical PHP build, so they are binary-compatible (verified via smoke test).
+- **Stage 2 (`runtime`)**: `php:8.4-fpm-alpine` + the Alpine `nginx` package.
+  - `docker/nginx-site.conf` → `/etc/nginx/http.d/petstore.conf`: listens on 8080, `root /app/public`, `try_files $uri /index.php?$query_string`, `fastcgi_pass 127.0.0.1:9000` (the fpm image's `zz-docker.conf` forces TCP 9000), `access_log off`.
+  - `docker/php-fpm-pool.conf` → `/usr/local/etc/php-fpm.d/zzz-petstore.conf`: sized for 2 CPUs / 512m — `pm = dynamic`, `pm.max_children = 8`, `pm.start_servers = 2`, `pm.min_spare_servers = 1`, `pm.max_spare_servers = 4`, `pm.max_requests = 500`; `clear_env = no` so `--env-file` vars reach workers; fpm access log disabled.
+  - `docker/entrypoint.optimized.sh`: runs `php artisan config:cache`, `route:cache`, `event:cache` at container start (runtime env is available then; failures are logged but non-fatal), then `php-fpm -D` in the background and `exec nginx -g 'daemon off;'` as PID 1.
+  - OPcache (`validate_timestamps=0`) and realpath-cache ini files are baked in; `LOG_CHANNEL=stderr LOG_LEVEL=error`.
+  - The container runs as **root**: the nginx/php-fpm masters need root for `/run` and `/var/lib/nginx`, but their workers drop to the unprivileged `nginx` / `www-data` users. `storage/` and `bootstrap/cache` are chowned to `www-data`.
+- `AppServiceProvider` registers the repository with `singleton()` (not `bind()`), so each fpm worker reuses one `PostgresPetstoreRepository`/PDO instance per request lifecycle. This applies to both variants.
+
 ## API Base Path
 
 Routes are registered under `/api/v3` (set via `apiPrefix` in `bootstrap/app.php`).
@@ -90,9 +110,9 @@ These follow the repo-wide schema invariants exactly:
 
 Unit tests in `tests/Unit/` test `InMemoryPetstoreRepository` directly — **no database needed**.
 
-- `PetRepositoryTest.php` — 23 assertions covering all pet operations
-- `StoreRepositoryTest.php` — covers order CRUD + inventory
-- `UserRepositoryTest.php` — covers all user operations + login/logout
+- `PetRepositoryTest.php` — covers all pet operations; includes indexed-array, exact-ID, and consecutive-ID assertions
+- `StoreRepositoryTest.php` — covers order CRUD + inventory; includes exact first-ID and consecutive-ID assertions
+- `UserRepositoryTest.php` — covers all user operations + login/logout; includes exact token-format assertion
 
 Integration tests (hitting PostgreSQL) are **not** included; the shared DB-free pattern keeps CI fast.
 
@@ -107,6 +127,9 @@ Excluded: `PostgresPetstoreRepository.php` (requires live DB)
 ```
 
 Results written to `infection.log`.
+
+**Current score: 98% Covered Code MSI** (91/92 mutants killed).  
+The single surviving mutant (`CastBool` on line 56 — `(bool) array_intersect(...)`) is an equivalent mutant: PHP's `array_filter` evaluates return values in a boolean context, so removing the cast has no observable effect.
 
 ## Generator Note
 

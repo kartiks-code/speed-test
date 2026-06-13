@@ -57,8 +57,8 @@ describe('PetService', () => {
       expect(res).to.deep.equal({ payload: pet, code: 200 });
     });
 
-    it('maps a 404 not-found error', async () => {
-      const err = new Error('Pet not found');
+    it('maps a 404 not-found error preserving e.message', async () => {
+      const err = new Error('Pet with id 99 does not exist');
       err.status = 404;
       sinon.stub(petRepo, 'findById').rejects(err);
 
@@ -67,7 +67,18 @@ describe('PetService', () => {
         (e) => e,
       );
 
-      expect(rejection).to.deep.equal({ error: 'Pet not found', code: 404 });
+      expect(rejection).to.deep.equal({ error: 'Pet with id 99 does not exist', code: 404 });
+    });
+
+    it('defaults code to 404 when error has no status', async () => {
+      sinon.stub(petRepo, 'findById').rejects(new Error('gone'));
+
+      const rejection = await PetService.getPetById({ petId: 99 }).then(
+        () => { throw new Error('expected rejection'); },
+        (e) => e,
+      );
+
+      expect(rejection.code).to.equal(404);
     });
   });
 
@@ -153,6 +164,49 @@ describe('PetService', () => {
     });
   });
 
+  describe('updatePetWithForm', () => {
+    it('calls updateWithForm with the correct args and returns empty payload', async () => {
+      const stub = sinon.stub(petRepo, 'updateWithForm').resolves();
+
+      const res = await PetService.updatePetWithForm({ petId: 5, name: 'Buddy', status: 'available' });
+
+      expect(stub.calledOnceWithExactly(5, 'Buddy', 'available')).to.equal(true);
+      expect(res).to.deep.equal({ payload: {}, code: 200 });
+    });
+
+    it('passes null for absent name and status', async () => {
+      const stub = sinon.stub(petRepo, 'updateWithForm').resolves();
+
+      await PetService.updatePetWithForm({ petId: 5 });
+
+      expect(stub.calledOnceWithExactly(5, null, null)).to.equal(true);
+    });
+
+    it('maps a repository error to rejectResponse with status', async () => {
+      const err = new Error('form error');
+      err.status = 405;
+      sinon.stub(petRepo, 'updateWithForm').rejects(err);
+
+      const rejection = await PetService.updatePetWithForm({ petId: 5, name: 'x' }).then(
+        () => { throw new Error('expected rejection'); },
+        (e) => e,
+      );
+
+      expect(rejection).to.deep.equal({ error: 'form error', code: 405 });
+    });
+
+    it('defaults to 405 when error has no status', async () => {
+      sinon.stub(petRepo, 'updateWithForm').rejects(new Error('oops'));
+
+      const rejection = await PetService.updatePetWithForm({ petId: 1, name: 'x' }).then(
+        () => { throw new Error('expected rejection'); },
+        (e) => e,
+      );
+
+      expect(rejection.code).to.equal(405);
+    });
+  });
+
   describe('uploadFile', () => {
     it('persists the uploaded bytes and reports the byte count', async () => {
       const content = Buffer.from('image-bytes');
@@ -162,10 +216,19 @@ describe('PetService', () => {
 
       expect(res.code).to.equal(200);
       expect(res.payload.code).to.equal(200);
+      expect(res.payload.type).to.equal('application/octet-stream');
       expect(res.payload.message).to.contain('pet 3');
       expect(res.payload.message).to.contain(`${content.length} bytes`);
       expect(res.payload.message).to.contain('meta');
       expect(addPhoto.calledOnceWith(3, content, 'application/octet-stream', 'meta')).to.equal(true);
+    });
+
+    it('formats message without metadata suffix when none provided', async () => {
+      sinon.stub(petRepo, 'addPhoto').resolves(7);
+
+      const res = await PetService.uploadFile({ petId: 2, body: Buffer.alloc(7) });
+
+      expect(res.payload.message).to.equal('File uploaded for pet 2, 7 bytes');
     });
 
     it('maps a repository error with .status to rejectResponse', async () => {

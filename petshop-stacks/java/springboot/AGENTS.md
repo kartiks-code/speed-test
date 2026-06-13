@@ -86,6 +86,12 @@ A surviving mutant means no test distinguishes the mutated bytecode from the
 original. Fix survivors by adding a sharper assertion or confirm they are
 equivalent mutations.
 
+**Current mutation score (June 2026):** 98% overall (182/185 killed), 100% test
+strength, 93 unit tests in `PetStoreTest`. Three uncovered mutations remain and
+are all equivalent or in generated Spring boilerplate (`getRequest()`, and a
+`fromJsonList` early-return that returns `new ArrayList<>()` vs
+`Collections.emptyList()` — the caller never modifies the list).
+
 ## Verification
 
 ```bash

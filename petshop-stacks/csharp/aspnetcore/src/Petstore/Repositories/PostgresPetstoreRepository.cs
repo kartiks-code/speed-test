@@ -11,14 +11,14 @@ namespace Petstore.Repositories
 {
     public class PostgresPetstoreRepository : IPetstoreRepository
     {
-        private readonly string _connectionString;
+        private readonly NpgsqlDataSource _dataSource;
 
-        public PostgresPetstoreRepository()
+        public PostgresPetstoreRepository(NpgsqlDataSource dataSource)
         {
-            _connectionString = BuildConnectionString();
+            _dataSource = dataSource;
         }
 
-        private static string BuildConnectionString()
+        public static string BuildConnectionString()
         {
             var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
             if (!string.IsNullOrEmpty(databaseUrl))
@@ -35,7 +35,7 @@ namespace Petstore.Repositories
         // Appends "Maximum Pool Size" from PG_MAX_POOL_SIZE when set; unset keeps
         // the Npgsql default (100). Skips appending if the connection string
         // already specifies a pool size, so explicit DATABASE_URL settings win.
-        private static string ApplyPoolSize(string connectionString)
+        public static string ApplyPoolSize(string connectionString)
         {
             var poolSize = Environment.GetEnvironmentVariable("PG_MAX_POOL_SIZE");
             if (string.IsNullOrEmpty(poolSize))
@@ -49,7 +49,7 @@ namespace Petstore.Repositories
         }
 
         private NpgsqlConnection OpenConnection() =>
-            new NpgsqlConnection(_connectionString);
+            _dataSource.OpenConnection();
 
         // ── Status helpers ─────────────────────────────────────────────
 

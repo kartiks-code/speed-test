@@ -49,6 +49,16 @@ describe('UserService', () => {
       expect(stub.calledOnceWithExactly({ username: 'solo' })).to.equal(true);
       expect(res).to.deep.equal({ payload: { username: 'solo' }, code: 200 });
     });
+
+    it('maps errors to status 405 by default', async () => {
+      sinon.stub(userRepo, 'create').rejects(new Error('create failed'));
+
+      const rejection = await expectRejection(
+        UserService.createUsersWithListInput({ user: [{ username: 'a' }] }),
+      );
+
+      expect(rejection).to.deep.equal({ error: 'create failed', code: 405 });
+    });
   });
 
   describe('getUserByName', () => {
@@ -62,14 +72,22 @@ describe('UserService', () => {
       expect(res).to.deep.equal({ payload: user, code: 200 });
     });
 
-    it('maps a 404 not-found error', async () => {
-      const err = new Error('User not found');
+    it('maps a 404 not-found error preserving e.message and e.status', async () => {
+      const err = new Error('No such user: ghost');
       err.status = 404;
       sinon.stub(userRepo, 'findByUsername').rejects(err);
 
       const rejection = await expectRejection(UserService.getUserByName({ username: 'ghost' }));
 
-      expect(rejection).to.deep.equal({ error: 'User not found', code: 404 });
+      expect(rejection).to.deep.equal({ error: 'No such user: ghost', code: 404 });
+    });
+
+    it('defaults code to 404 when error has no status', async () => {
+      sinon.stub(userRepo, 'findByUsername').rejects(new Error('gone'));
+
+      const rejection = await expectRejection(UserService.getUserByName({ username: 'x' }));
+
+      expect(rejection.code).to.equal(404);
     });
   });
 
@@ -81,6 +99,28 @@ describe('UserService', () => {
 
       expect(stub.calledOnceWithExactly('bob', { email: 'x@y.z' })).to.equal(true);
       expect(res).to.deep.equal({ payload: {}, code: 200 });
+    });
+
+    it('maps errors with status to rejectResponse', async () => {
+      const err = new Error('update failed');
+      err.status = 400;
+      sinon.stub(userRepo, 'update').rejects(err);
+
+      const rejection = await expectRejection(
+        UserService.updateUser({ username: 'alice', user: {} }),
+      );
+
+      expect(rejection).to.deep.equal({ error: 'update failed', code: 400 });
+    });
+
+    it('defaults to 405 when error has no status', async () => {
+      sinon.stub(userRepo, 'update').rejects(new Error('oops'));
+
+      const rejection = await expectRejection(
+        UserService.updateUser({ username: 'alice', user: {} }),
+      );
+
+      expect(rejection.code).to.equal(405);
     });
   });
 
@@ -114,6 +154,16 @@ describe('UserService', () => {
         error: 'Invalid username/password supplied',
         code: 400,
       });
+    });
+
+    it('maps unexpected exceptions to a 400 error response', async () => {
+      sinon.stub(userRepo, 'authenticate').rejects(new Error('auth error'));
+
+      const rejection = await expectRejection(
+        UserService.loginUser({ username: 'x', password: 'y' }),
+      );
+
+      expect(rejection).to.deep.equal({ error: 'auth error', code: 400 });
     });
   });
 

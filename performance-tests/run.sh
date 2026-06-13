@@ -111,10 +111,13 @@ stack_field() {
     jq -r --arg id "$id" --arg field "$field" '.[] | select(.id==$id) | .[$field] // empty' "$STACKS_JSON"
 }
 
-# Write a Docker --env-file for a given stack id into a temp file.
+# Write a Docker --env-file for a given stack id + variant into a temp file.
+# For the optimized variant, the optional "env_optimized" object in stacks.json
+# is merged over the base "env" (keys in env_optimized win).
 # Prints the temp file path; caller is responsible for deleting it.
 write_env_file() {
     local id="$1"
+    local variant="${2:-naive}"
     local tmp
     tmp=$(mktemp /tmp/speed-test-env-XXXXXX)
 
@@ -142,14 +145,19 @@ write_env_file() {
             ;;
     esac
 
-    # Pull env object from stacks.json; skip PLACEHOLDER values
+    # Pull env object from stacks.json; skip PLACEHOLDER values.
+    # Optimized variant: overlay the optional env_optimized object on top of env.
+    local env_expr='.env'
+    if [[ "$variant" == "optimized" ]]; then
+        env_expr='(.env + (.env_optimized // {}))'
+    fi
     while IFS="=" read -r key val; do
         case "$val" in
             PLACEHOLDER_*) continue ;;
         esac
         echo "${key}=${val}" >> "$tmp"
     done < <(jq -r --arg id "$id" \
-        '.[] | select(.id==$id) | .env | to_entries[] | .key + "=" + .value' \
+        ".[] | select(.id==\$id) | ${env_expr} | to_entries[] | .key + \"=\" + .value" \
         "$STACKS_JSON")
 
     echo "$tmp"
@@ -282,7 +290,7 @@ run_one() {
 
     # ── 4. Start app container ───────────────────────────────────────────
     local env_file
-    env_file=$(write_env_file "$stack_id")
+    env_file=$(write_env_file "$stack_id" "$variant")
 
     # Optional entrypoint + cmd overrides (e.g. Rails naive uses a broken db:migrate entrypoint)
     local entrypoint_override

@@ -20,11 +20,13 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -108,7 +110,7 @@ class PetStoreTest {
                 .category(new Category().id(2L).name("Dogs"))
                 .status(Pet.StatusEnum.AVAILABLE);
 
-        when(jdbc.queryForObject("SELECT COALESCE(MAX(id), 0) + 1 FROM pet", Long.class))
+        when(jdbc.queryForObject("SELECT nextval('pet_id_seq')", Long.class))
                 .thenReturn(5L);
         Pet stored = new Pet().id(5L).name("Fido");
         when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(5L)))
@@ -143,7 +145,7 @@ class PetStoreTest {
     @Test
     void placeOrderGeneratesIdWhenMissing() {
         Order order = new Order().petId(1L).quantity(2).status(Order.StatusEnum.PLACED);
-        when(jdbc.queryForObject("SELECT COALESCE(MAX(id), 0) + 1 FROM \"order\"", Long.class))
+        when(jdbc.queryForObject("SELECT nextval('order_id_seq')", Long.class))
                 .thenReturn(10L);
 
         store().placeOrder(order);
@@ -336,5 +338,514 @@ class PetStoreTest {
         assertThat(user.getPassword()).isEqualTo("secret");
         assertThat(user.getPhone()).isEqualTo("555-0100");
         assertThat(user.getUserStatus()).isEqualTo(1);
+    }
+
+    // ---------------------------------------------------------------------
+    // Return-value and boundary survivors
+    // ---------------------------------------------------------------------
+
+    @Test
+    void findPetsByStatusReturnsQueryResult() {
+        List<Pet> expected = List.of(new Pet().id(1L));
+        when(jdbc.query(anyString(), any(RowMapper.class), eq("available")))
+                .thenReturn(expected);
+
+        List<Pet> result = store().findPetsByStatus(List.of());
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    @Test
+    void findPetsByStatusWithNonDefaultStatusPassesItToQuery() {
+        List<Pet> expected = List.of(new Pet().id(2L));
+        when(jdbc.query(anyString(), any(RowMapper.class), eq("pending")))
+                .thenReturn(expected);
+
+        List<Pet> result = store().findPetsByStatus(List.of("pending"));
+
+        assertThat(result).isSameAs(expected);
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).query(sql.capture(), any(RowMapper.class), eq("pending"));
+        assertThat(sql.getValue()).contains("status::text IN (?)");
+    }
+
+    @Test
+    void updatePetFieldsBothNullVerifiesExistenceAndReturnsTrue() {
+        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(5L)))
+                .thenReturn(new Pet().id(5L));
+
+        boolean result = store().updatePetFields(5L, null, null);
+
+        assertThat(result).isTrue();
+        verify(jdbc).queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(5L));
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void updatePetFieldsReturnsFalseWhenNoRowsAffected() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(0);
+
+        boolean result = store().updatePetFields(5L, "NewName", null);
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void placeOrderReturnsStoredOrder() {
+        Order expected = new Order().id(10L);
+        when(jdbc.queryForObject("SELECT nextval('order_id_seq')", Long.class)).thenReturn(10L);
+        when(jdbc.queryForObject(startsWith("SELECT id, pet_id"), any(RowMapper.class), eq(10L)))
+                .thenReturn(expected);
+
+        Order result = store().placeOrder(new Order());
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    @Test
+    void getOrderByIdReturnsOrder() {
+        Order expected = new Order().id(99L);
+        when(jdbc.queryForObject(startsWith("SELECT id, pet_id"), any(RowMapper.class), eq(99L)))
+                .thenReturn(expected);
+
+        Order result = store().getOrderById(99L);
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    @Test
+    void getUserByUsernameReturnsUser() {
+        User expected = new User().id(1L).username("bob");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("bob")))
+                .thenReturn(expected);
+
+        User result = store().getUserByUsername("bob");
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    // ---------------------------------------------------------------------
+    // validatePet null-status survivor
+    // ---------------------------------------------------------------------
+
+    @Test
+    void createPetWithNullStatusDoesNotThrow() {
+        // Exercises the null-status branch in validatePet; the negated-conditional mutant
+        // would NPE when status is null (tries to call null.getValue()).
+        Pet pet = new Pet().name("Nemo").photoUrls(List.of("http://x/1.jpg"));
+        when(jdbc.queryForObject("SELECT nextval('pet_id_seq')", Long.class)).thenReturn(1L);
+        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(1L)))
+                .thenReturn(new Pet().id(1L));
+
+        Pet result = store().createPet(pet);
+
+        assertThat(result).isNotNull();
+    }
+
+    // ---------------------------------------------------------------------
+    // compactStrings survivors
+    // ---------------------------------------------------------------------
+
+    @Test
+    void findPetsByStatusWithNullListDefaultsToAvailable() {
+        // Exercises compactStrings(null) – negated-conditional mutant would NPE iterating null.
+        when(jdbc.query(anyString(), any(RowMapper.class), eq("available")))
+                .thenReturn(List.of());
+
+        List<Pet> result = store().findPetsByStatus(null);
+
+        assertThat(result).isEmpty();
+        verify(jdbc).query(anyString(), any(RowMapper.class), eq("available"));
+    }
+
+    @Test
+    void findPetsByStatusHandlesNullElementInList() {
+        // Exercises the `if (value == null) continue` branch inside compactStrings.
+        // The negated-conditional mutant would NPE calling null.split(",").
+        List<String> withNull = new ArrayList<>();
+        withNull.add("available");
+        withNull.add(null);
+        when(jdbc.query(anyString(), any(RowMapper.class), eq("available")))
+                .thenReturn(List.of());
+
+        List<Pet> result = store().findPetsByStatus(withNull);
+
+        assertThat(result).isEmpty();
+        verify(jdbc).query(anyString(), any(RowMapper.class), eq("available"));
+    }
+
+    @Test
+    void findPetsByStatusHandlesCommaSeparatedValues() {
+        // Exercises the `if (!trimmed.isEmpty())` branch – commas produce empty tokens.
+        // Mutant would include empty strings and query with the wrong argument.
+        when(jdbc.query(anyString(), any(RowMapper.class), eq("available")))
+                .thenReturn(List.of());
+
+        List<Pet> result = store().findPetsByStatus(List.of(",available,"));
+
+        assertThat(result).isEmpty();
+        verify(jdbc).query(anyString(), any(RowMapper.class), eq("available"));
+    }
+
+    // ---------------------------------------------------------------------
+    // updatePet – previously uncovered
+    // ---------------------------------------------------------------------
+
+    @Test
+    void updatePetSuccessReturnsPet() {
+        Pet existing = new Pet().id(10L).name("Fido").photoUrls(List.of("http://x/1.jpg"));
+        Pet stored = new Pet().id(10L).name("NewName").photoUrls(List.of("http://x/2.jpg"));
+        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(10L)))
+                .thenReturn(existing)   // first call: existence check in updatePet
+                .thenReturn(stored);    // second call: read-back inside upsertPet
+
+        Pet pet = new Pet().id(10L).name("NewName").photoUrls(List.of("http://x/2.jpg"));
+        Pet result = store().updatePet(pet);
+
+        assertThat(result).isSameAs(stored);
+    }
+
+    @Test
+    void updatePetThrowsNotFoundWhenPetMissing() {
+        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(99L)))
+                .thenThrow(new EmptyResultDataAccessException(1));
+
+        Pet pet = new Pet().id(99L).name("Ghost").photoUrls(List.of("http://x/1.jpg"));
+        assertThatThrownBy(() -> store().updatePet(pet))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("pet 99 not found");
+    }
+
+    // ---------------------------------------------------------------------
+    // createPet with pre-supplied id – previously uncovered branch
+    // ---------------------------------------------------------------------
+
+    @Test
+    void createPetWithExistingIdDoesNotGenerateNewId() {
+        Pet stored = new Pet().id(99L).name("Buddy");
+        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(99L)))
+                .thenReturn(stored);
+
+        Pet pet = new Pet().id(99L).name("Buddy").photoUrls(List.of("http://x/1.jpg"));
+        Pet result = store().createPet(pet);
+
+        assertThat(result).isSameAs(stored);
+        assertThat(pet.getId()).isEqualTo(99L);
+        verify(jdbc, never()).queryForObject("SELECT nextval('pet_id_seq')", Long.class);
+    }
+
+    // ---------------------------------------------------------------------
+    // deletePet – previously uncovered
+    // ---------------------------------------------------------------------
+
+    @Test
+    void deletePetReturnsTrueWhenRowDeleted() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        assertThat(store().deletePet(7L)).isTrue();
+    }
+
+    @Test
+    void deletePetReturnsFalseWhenRowNotFound() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(0);
+        assertThat(store().deletePet(7L)).isFalse();
+    }
+
+    // ---------------------------------------------------------------------
+    // findPetsByTags with tags – previously uncovered return-value path
+    // ---------------------------------------------------------------------
+
+    @Test
+    void findPetsByTagsWithTagsReturnsQueryResult() {
+        List<Pet> expected = List.of(new Pet().id(1L));
+        when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(expected);
+
+        List<Pet> result = store().findPetsByTags(List.of("cute"));
+
+        assertThat(result).isSameAs(expected);
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).query(sql.capture(), any(RowMapper.class), any(Object[].class));
+        assertThat(sql.getValue()).contains("json_array_elements");
+    }
+
+    // ---------------------------------------------------------------------
+    // savePetPhoto – previously uncovered
+    // ---------------------------------------------------------------------
+
+    @Test
+    void savePetPhotoStoresBytesAndReturnsSize() {
+        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(3L)))
+                .thenReturn(new Pet().id(3L));
+
+        byte[] content = {1, 2, 3};
+        int size = store().savePetPhoto(3L, content, "image/jpeg", "meta");
+
+        assertThat(size).isEqualTo(3);
+        verify(jdbc).update(startsWith("INSERT INTO pet_photo"),
+                eq(3L), eq("image/jpeg"), eq("meta"), eq(content));
+    }
+
+    @Test
+    void savePetPhotoWithNullContentTreatsAsEmpty() {
+        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(4L)))
+                .thenReturn(new Pet().id(4L));
+
+        int size = store().savePetPhoto(4L, null, "image/jpeg", null);
+
+        assertThat(size).isEqualTo(0);
+    }
+
+    // ---------------------------------------------------------------------
+    // placeOrder with pre-supplied id – previously uncovered branch
+    // ---------------------------------------------------------------------
+
+    @Test
+    void placeOrderWithExistingIdDoesNotGenerateNewId() {
+        Order existing = new Order().id(5L);
+        when(jdbc.queryForObject(startsWith("SELECT id, pet_id"), any(RowMapper.class), eq(5L)))
+                .thenReturn(existing);
+
+        Order order = new Order().id(5L).status(Order.StatusEnum.PLACED);
+        Order result = store().placeOrder(order);
+
+        assertThat(result).isSameAs(existing);
+        verify(jdbc, never()).queryForObject("SELECT nextval('order_id_seq')", Long.class);
+    }
+
+    // ---------------------------------------------------------------------
+    // deleteOrder – previously uncovered
+    // ---------------------------------------------------------------------
+
+    @Test
+    void deleteOrderReturnsTrueWhenRowDeleted() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        assertThat(store().deleteOrder(10L)).isTrue();
+    }
+
+    @Test
+    void deleteOrderReturnsFalseWhenOrderNotFound() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(0);
+        assertThat(store().deleteOrder(10L)).isFalse();
+    }
+
+    // ---------------------------------------------------------------------
+    // createUser – previously uncovered happy-path
+    // ---------------------------------------------------------------------
+
+    @Test
+    void createUserGeneratesIdAndReturnsUser() {
+        User expected = new User().id(20L).username("bob");
+        when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class)).thenReturn(20L);
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("bob")))
+                .thenReturn(expected);
+
+        User user = new User().username("bob");
+        User result = store().createUser(user);
+
+        assertThat(result).isSameAs(expected);
+        assertThat(user.getId()).isEqualTo(20L);
+    }
+
+    @Test
+    void createUserWithExistingIdDoesNotGenerateNewId() {
+        User expected = new User().id(5L).username("alice");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("alice")))
+                .thenReturn(expected);
+
+        User user = new User().id(5L).username("alice");
+        User result = store().createUser(user);
+
+        assertThat(result).isSameAs(expected);
+        verify(jdbc, never()).queryForObject("SELECT nextval('user_id_seq')", Long.class);
+    }
+
+    @Test
+    void createUserWithZeroIdGeneratesNewId() {
+        User expected = new User().id(7L).username("carol");
+        when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class)).thenReturn(7L);
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("carol")))
+                .thenReturn(expected);
+
+        User user = new User().id(0L).username("carol");
+        User result = store().createUser(user);
+
+        assertThat(user.getId()).isEqualTo(7L);
+        assertThat(result).isSameAs(expected);
+    }
+
+    // ---------------------------------------------------------------------
+    // createUsers – previously uncovered
+    // ---------------------------------------------------------------------
+
+    @Test
+    void createUsersReturnsLastUser() {
+        User u1 = new User().username("u1");
+        User u2 = new User().username("u2");
+        User stored1 = new User().id(1L).username("u1");
+        User stored2 = new User().id(2L).username("u2");
+
+        when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class))
+                .thenReturn(1L).thenReturn(2L);
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("u1")))
+                .thenReturn(stored1);
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("u2")))
+                .thenReturn(stored2);
+
+        User result = store().createUsers(List.of(u1, u2));
+
+        assertThat(result).isSameAs(stored2);
+    }
+
+    @Test
+    void createUsersThrowsForBlankUsername() {
+        assertThatThrownBy(() -> store().createUsers(List.of(new User().username(""))))
+                .isInstanceOf(InvalidInputException.class)
+                .hasMessageContaining("username is required");
+    }
+
+    @Test
+    void createUsersWithExistingIdDoesNotGenerateNewId() {
+        User u1 = new User().id(5L).username("u1");
+        User stored = new User().id(5L).username("u1");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("u1")))
+                .thenReturn(stored);
+
+        User result = store().createUsers(List.of(u1));
+
+        assertThat(result).isSameAs(stored);
+        verify(jdbc, never()).queryForObject(startsWith("SELECT nextval"), any(Class.class));
+    }
+
+    // ---------------------------------------------------------------------
+    // updateUser – previously uncovered
+    // ---------------------------------------------------------------------
+
+    @Test
+    void updateUserUpdatesAndReturnsTrue() {
+        User existing = new User().id(10L).username("alice");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("alice")))
+                .thenReturn(existing);
+        when(jdbc.update(startsWith("UPDATE \"user\""), any(Object[].class))).thenReturn(1);
+
+        boolean result = store().updateUser("alice", new User().username("alice").id(10L));
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void updateUserReturnsFalseWhenNothingUpdated() {
+        User existing = new User().id(10L).username("alice");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("alice")))
+                .thenReturn(existing);
+        when(jdbc.update(startsWith("UPDATE \"user\""), any(Object[].class))).thenReturn(0);
+
+        boolean result = store().updateUser("alice", new User().username("alice").id(10L));
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void updateUserFillsMissingUsernameAndIdFromExisting() {
+        User existing = new User().id(10L).username("alice");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("alice")))
+                .thenReturn(existing);
+        when(jdbc.update(startsWith("UPDATE \"user\""), any(Object[].class))).thenReturn(1);
+
+        User update = new User(); // no username or id
+        boolean result = store().updateUser("alice", update);
+
+        assertThat(result).isTrue();
+        assertThat(update.getUsername()).isEqualTo("alice");
+        assertThat(update.getId()).isEqualTo(10L);
+    }
+
+    @Test
+    void updateUserThrowsForBlankUsername() {
+        assertThatThrownBy(() -> store().updateUser("", new User()))
+                .isInstanceOf(InvalidInputException.class)
+                .hasMessageContaining("username is required");
+    }
+
+    @Test
+    void updateUserThrowsNotFoundForMissingUser() {
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("ghost")))
+                .thenThrow(new EmptyResultDataAccessException(1));
+
+        assertThatThrownBy(() -> store().updateUser("ghost", new User()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("user ghost not found");
+    }
+
+    // ---------------------------------------------------------------------
+    // deleteUser – previously uncovered
+    // ---------------------------------------------------------------------
+
+    @Test
+    void deleteUserReturnsTrueWhenRowDeleted() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        assertThat(store().deleteUser("alice")).isTrue();
+    }
+
+    @Test
+    void deleteUserReturnsFalseWhenUserNotFound() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(0);
+        assertThat(store().deleteUser("alice")).isFalse();
+    }
+
+    // ---------------------------------------------------------------------
+    // Targeted tests for remaining survivors
+    // ---------------------------------------------------------------------
+
+    @Test
+    void updatePetCallsValidatePet() {
+        // Kills the "removed call to validatePet" survivor in updatePet.
+        // Without validatePet, an invalid pet would pass through silently.
+        Pet pet = new Pet().id(10L).photoUrls(List.of("http://x/1.jpg")); // name is null
+        assertThatThrownBy(() -> store().updatePet(pet))
+                .isInstanceOf(InvalidInputException.class)
+                .hasMessageContaining("name is required");
+    }
+
+    @Test
+    void createUsersSetsGeneratedIdOnUser() {
+        // Kills the "removed call to User::setId" survivor in createUsers.
+        User u = new User().username("x1");
+        when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class)).thenReturn(100L);
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("x1")))
+                .thenReturn(new User().id(100L).username("x1"));
+
+        store().createUsers(List.of(u));
+
+        assertThat(u.getId()).isEqualTo(100L);
+    }
+
+    @Test
+    void updateUserPreservesProvidedUsername() {
+        // Kills the negated-conditional survivor on the "setUsername if blank" check:
+        // the mutant would overwrite a supplied username with the old one.
+        User existing = new User().id(10L).username("alice");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("alice")))
+                .thenReturn(existing);
+        when(jdbc.update(startsWith("UPDATE \"user\""), any(Object[].class))).thenReturn(1);
+
+        User update = new User().username("alice-renamed");
+        store().updateUser("alice", update);
+
+        assertThat(update.getUsername()).isEqualTo("alice-renamed");
+    }
+
+    @Test
+    void updateUserPreservesProvidedId() {
+        // Kills the negated-conditional survivor on the "setId if zero" check:
+        // the mutant would overwrite a supplied id with the existing one.
+        User existing = new User().id(10L).username("alice");
+        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("alice")))
+                .thenReturn(existing);
+        when(jdbc.update(startsWith("UPDATE \"user\""), any(Object[].class))).thenReturn(1);
+
+        User update = new User().username("alice").id(99L);
+        store().updateUser("alice", update);
+
+        assertThat(update.getId()).isEqualTo(99L);
     }
 }

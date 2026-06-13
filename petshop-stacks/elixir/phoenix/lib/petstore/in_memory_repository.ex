@@ -10,6 +10,11 @@ defmodule Petstore.InMemoryRepository do
     Agent.start_link(fn -> initial_state() end, name: __MODULE__)
   end
 
+  @doc "Resets all in-memory state. Use in test setup instead of restarting."
+  def reset do
+    Agent.update(__MODULE__, fn _ -> initial_state() end)
+  end
+
   defp initial_state, do: %{pets: %{}, orders: %{}, users: %{}}
 
   defp state, do: Agent.get(__MODULE__, & &1)

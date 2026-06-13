@@ -127,5 +127,71 @@ namespace Petstore.Tests
             repo.CreateUser(u2);
             Assert.Equal("David", repo.GetUserByName("dave").FirstName);
         }
+
+        // ── ID sequencing: kills line 133 mutation, covers lines 134–135 ─────────
+
+        [Fact]
+        public void CreateUser_AutoAssignsSequentialIds()
+        {
+            var repo = CreateRepo();
+            var u1 = repo.CreateUser(SampleUser("alpha"));
+            var u2 = repo.CreateUser(SampleUser("beta"));
+            Assert.Equal(1, u1.Id);
+            Assert.Equal(2, u2.Id);
+        }
+
+        [Fact]
+        public void CreateUser_SetsSequenceBeyondExplicitId()
+        {
+            // Covers NoCoverage lines 134-135 (>= vs >, negate, +1 vs -1)
+            var repo = CreateRepo();
+            var explicit_ = SampleUser("withid");
+            explicit_.Id = 100;
+            repo.CreateUser(explicit_);
+            var auto = repo.CreateUser(SampleUser("auto"));
+            Assert.Equal(101, auto.Id);
+        }
+
+        [Fact]
+        public void CreateUser_SetsSequenceWhenExplicitIdEqualsNextId()
+        {
+            // Kills: line 134 (>= vs >) — only differs when Id == _nextUserId (both start at 1)
+            var repo = CreateRepo();
+            var explicit_ = SampleUser("explicit");
+            explicit_.Id = 1;
+            repo.CreateUser(explicit_);
+            var auto = repo.CreateUser(SampleUser("auto"));
+            Assert.Equal(2, auto.Id);
+        }
+
+        // ── CreateUsersWithListInput empty list: kills line 143 (|| vs &&) ────────
+
+        [Fact]
+        public void CreateUsersWithListInput_ReturnsNull_ForEmptyList()
+        {
+            var repo = CreateRepo();
+            var result = repo.CreateUsersWithListInput(new List<User>());
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public void CreateUsersWithListInput_ReturnsNull_ForNullList()
+        {
+            // Kills line 143 (|| vs &&): with &&, null input causes NullReferenceException on .Count
+            var repo = CreateRepo();
+            var result = repo.CreateUsersWithListInput(null);
+            Assert.Null(result);
+        }
+
+        // ── UpdateUser return value: kills line 181 (return true → false) ─────────
+
+        [Fact]
+        public void UpdateUser_ReturnsTrue_WhenUserExists()
+        {
+            var repo = CreateRepo();
+            repo.CreateUser(SampleUser("test"));
+            var ok = repo.UpdateUser("test", SampleUser("test"));
+            Assert.True(ok);
+        }
     }
 }

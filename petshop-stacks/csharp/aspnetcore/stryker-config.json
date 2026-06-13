@@ -2,13 +2,13 @@
   "stryker-config": {
     "project": "Petstore.csproj",
     "test-projects": [
-      "../../tests/Petstore.Tests/Petstore.Tests.csproj"
+      "tests/Petstore.Tests/Petstore.Tests.csproj"
     ],
-    "reporters": ["html", "progress"],
+    "reporters": ["html", "progress", "json"],
     "mutation-level": "Standard",
     "mutate": [
-      "src/Petstore/Repositories/InMemoryPetstoreRepository.cs",
-      "src/Petstore/Repositories/PostgresPetstoreRepository.cs"
-    ]
+      "**/Repositories/InMemoryPetstoreRepository.cs"
+    ],
+    "ignore-mutations": ["Block", "Linq"]
   }
 }

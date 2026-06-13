@@ -4,7 +4,7 @@ defmodule Petstore.UserTest do
   alias Petstore.InMemoryRepository, as: Repo
 
   setup do
-    {:ok, _} = start_supervised(Repo)
+    Repo.reset()
     :ok
   end
 
@@ -100,6 +100,54 @@ defmodule Petstore.UserTest do
   describe "logout_user/0" do
     test "returns :ok (stateless)" do
       assert :ok = Repo.logout_user()
+    end
+  end
+
+  describe "create_user/1 with snake_case keys" do
+    test "accepts first_name and last_name as snake_case" do
+      {:ok, user} = Repo.create_user(%{
+        "username" => "snakeuser",
+        "first_name" => "Snake",
+        "last_name" => "Case"
+      })
+      assert user["firstName"] == "Snake"
+      assert user["lastName"] == "Case"
+    end
+
+    test "accepts user_status as snake_case" do
+      {:ok, user} = Repo.create_user(%{"username" => "statususer", "user_status" => 2})
+      assert user["userStatus"] == 2
+    end
+  end
+
+  describe "create_user/1 with atom keys" do
+    test "accepts atom keys" do
+      {:ok, user} = Repo.create_user(%{username: "atomuser", firstName: "Atom", email: "a@b.com"})
+      assert user["username"] == "atomuser"
+      assert user["firstName"] == "Atom"
+    end
+  end
+
+  describe "create_users_with_list/1 edge cases" do
+    test "creates multiple users and returns all" do
+      {:ok, users} = Repo.create_users_with_list([
+        %{"username" => "user1"},
+        %{"username" => "user2"}
+      ])
+      assert length(users) == 2
+    end
+
+    test "creates empty list" do
+      {:ok, users} = Repo.create_users_with_list([])
+      assert users == []
+    end
+  end
+
+  describe "login_user/2 edge cases" do
+    test "always returns the same token regardless of credentials" do
+      {:ok, token1} = Repo.login_user("user1", "pass1")
+      {:ok, token2} = Repo.login_user("user2", "pass2")
+      assert token1 == token2
     end
   end
 end

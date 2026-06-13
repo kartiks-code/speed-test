@@ -51,6 +51,19 @@ class StoreRepositoryTest extends TestCase
         self::assertGreaterThan($o1['id'], $o2['id']);
     }
 
+    public function testFirstOrderIdIsOne(): void
+    {
+        $order = $this->repo->placeOrder(['petId' => 1, 'quantity' => 1, 'status' => 'placed']);
+        self::assertSame(1, $order['id']);
+    }
+
+    public function testOrderIdsAreConsecutive(): void
+    {
+        $o1 = $this->repo->placeOrder(['petId' => 1, 'quantity' => 1, 'status' => 'placed']);
+        $o2 = $this->repo->placeOrder(['petId' => 2, 'quantity' => 1, 'status' => 'placed']);
+        self::assertSame($o1['id'] + 1, $o2['id']);
+    }
+
     // ── getOrderById ──────────────────────────────────────────────────────
 
     public function testGetOrderByIdReturnsCorrectOrder(): void

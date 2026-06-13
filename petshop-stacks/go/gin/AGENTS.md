@@ -117,8 +117,26 @@ enough for per-mutant reruns without a live database.
 go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
 
 # Run from the project directory (petshop-stacks/go/gin/):
-gremlins unleash ./go/...
+gremlins unleash \
+  --coverpkg github.com/GIT_USER_ID/GIT_REPO_ID/go \
+  --integration \
+  --timeout-coefficient 100 \
+  ./go
 ```
+
+**Important flags** — see `.gremlins.yaml` for detailed explanations:
+- `--integration`: run **all** tests per mutant, not just per-line-covered tests.
+  Without this flag, gremlins' coverage-based test selection misses the handler
+  tests when mutating helper functions, causing >90% of mutations to appear as
+  "LIVED" even though the full suite kills them.
+- `--timeout-coefficient 100`: per-mutant compile+run takes ~1–2 s; the default
+  10× budget (≈ 400 ms) is too short. 100× gives a safe ~4 s window.
+
+Current expected result: **Test efficacy ≈ 98%** (59 killed, 1 equivalent survivor).
+
+The 1 surviving mutant (`api_helpers.go:45 if value != ""`) is **equivalent**: the
+inner guard prevents setting `values = []string{""}`, but `compactStrings` would
+filter the empty string anyway, so the mutated code produces identical output.
 
 gremlins prints a mutation score and lists surviving mutants per file. A
 surviving mutant means no test distinguished the mutated code from the original —
