@@ -1,0 +1,12 @@
+FROM oven/bun:1 AS builder
+WORKDIR /app
+COPY package.json ./
+RUN bun install --production
+COPY . .
+
+FROM oven/bun:1-alpine
+WORKDIR /app
+COPY --from=builder /app .
+ENV NODE_ENV=production PG_POOL_MAX=100
+EXPOSE 8080
+CMD ["bun", "run", "index.ts"]
