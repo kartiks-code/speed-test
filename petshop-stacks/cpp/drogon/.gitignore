@@ -1,0 +1,31 @@
+# CMake build directory
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+install_manifest.txt
+*.cmake
+!CMakeLists.txt
+
+# Compiled binaries
+petstore-drogon
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# Mull mutation testing
+mull-report/
+
+# Environment variables
+.env
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
