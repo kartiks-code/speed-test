@@ -1,0 +1,65 @@
+# Helidon MP GraalVM native-image build.
+#
+# STATUS: BUILD FAILS — DO NOT USE for benchmarks.
+#
+# Helidon 4 MicroProfile uses Weld for CDI, which creates JDK dynamic proxy
+# objects for annotation instances during the GraalVM analysis phase. GraalVM
+# cannot persist these proxy objects in the image heap because Weld marks their
+# classes for runtime initialization. Each `--initialize-at-build-time` fix
+# triggers the next cascade: Jackson Version → CDI annotation proxies →
+# jakarta.validation proxies → ... Fixing the full chain would require
+# overriding the initialization policy for dozens of third-party classes.
+#
+# Root cause: Helidon MP uses Weld CDI + Jersey JAX-RS. Both libraries were
+# not designed for ahead-of-time compilation. Quarkus solves this with ArC,
+# its own CDI implementation designed specifically for native image. Spring Boot
+# solves it with ahead-of-time Spring AOT processing. Helidon MP does not have
+# a comparable solution.
+#
+# For a GraalVM-native Java petstore server, use `springboot` or `quarkus`
+# instead — both build cleanly.
+#
+# This file is left here for documentation purposes. Uncomment `--no-fallback`
+# and run `docker build -f Dockerfile.graalvm` to reproduce the failure.
+# The pom.xml native-image profile and the partial fix for com.fasterxml.jackson
+# are left in place to show what was attempted.
+
+# ── Stage 1: resolve Maven dependencies ─────────────────────────────────────
+FROM ghcr.io/graalvm/native-image-community:25 AS deps
+
+ARG MAVEN_VERSION=3.9.9
+RUN microdnf install -y tar gzip findutils && \
+    curl -sL "https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz" \
+        | tar -xz -C /opt && \
+    ln -s "/opt/apache-maven-${MAVEN_VERSION}/bin/mvn" /usr/local/bin/mvn
+
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -Pnative-image -q
+
+# ── Stage 2: build native binary ─────────────────────────────────────────────
+FROM deps AS build
+
+COPY src ./src
+
+# Build fails at the native-image analysis phase due to Weld CDI proxy cascade.
+# See STATUS comment at the top of this file.
+RUN mvn package -Pnative-image -DskipTests -q
+
+# ── Stage 3: minimal runtime (unreachable — build does not succeed) ──────────
+FROM debian:12-slim AS runtime
+
+RUN groupadd -r helidon && useradd -r -g helidon helidon
+
+WORKDIR /app
+COPY --from=build /app/target/petstore-helidon ./petstore-helidon
+RUN chown helidon:helidon ./petstore-helidon
+
+USER helidon
+
+EXPOSE 8080
+
+ENV METRICS_REST_REQUEST_ENABLED=false
+ENV HIKARI_MINIMUM_IDLE=25
+
+ENTRYPOINT ["./petstore-helidon"]

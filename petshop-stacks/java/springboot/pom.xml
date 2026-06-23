@@ -64,6 +64,41 @@
             </plugin>
         </plugins>
     </build>
+    <!-- GraalVM native-image profile: mvn -Pnative native:compile -DskipTests -->
+    <profiles>
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <!-- native-maven-plugin version is managed by spring-boot-starter-parent -->
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <extensions>true</extensions>
+                        <executions>
+                            <execution>
+                                <id>build-native</id>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <imageName>petstore-server</imageName>
+                            <buildArgs>
+                                <!-- Skip fallback to JVM to catch config issues at build time -->
+                                <buildArg>--no-fallback</buildArg>
+                                <!-- Reduce image size by excluding debug symbols -->
+                                <buildArg>-O2</buildArg>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -96,8 +131,13 @@
         </dependency>
         <!-- Bean Validation API support -->
         <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context-indexer</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -115,6 +155,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <!-- CRaC: enables spring.context.checkpoint=onRefresh for Dockerfile.crac.
+             Version is managed by spring-boot-starter-parent. -->
+        <dependency>
+            <groupId>org.crac</groupId>
+            <artifactId>crac</artifactId>
         </dependency>
     </dependencies>
 </project>

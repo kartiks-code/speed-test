@@ -1,0 +1,66 @@
+# Stage 1: build the fast-jar.
+# Same base as Dockerfile.optimized; CRaC is a runtime feature so the
+# build toolchain stays on standard Temurin.
+FROM eclipse-temurin:25-jdk-alpine AS build
+
+WORKDIR /app
+COPY gradlew .
+COPY gradle ./gradle
+COPY build.gradle settings.gradle gradle.properties ./
+RUN ./gradlew dependencies -q 2>/dev/null || true
+
+COPY src ./src
+# Build fast-jar — no AppCDS; CRaC replaces that role here.
+RUN ./gradlew build -x test -q \
+    -Dquarkus.package.jar.type=fast-jar
+
+# Stage 2: CRaC checkpoint-ready image.
+# Azul Zulu JDK 25 with CRaC/CRIU support (Ubuntu/glibc).
+# BellSoft only publishes CRaC images up to JDK 21; Azul publishes JDK 25.
+# Class files are platform-neutral so mixing Alpine build stages with a
+# glibc runtime stage is safe for pure-Java applications.
+#
+# HOW THIS VARIANT WORKS (two-phase build in run.sh):
+#   Phase A — docker build: produces this image whose ENTRYPOINT starts Quarkus
+#             with -XX:CRaCCheckpointTo=/checkpoint and quarkus.crac.generate=true;
+#             the quarkus-crac extension closes Agroal and other resources, calls
+#             Core.checkpointRestore(), and the JVM exits.
+#   Phase B — docker run (--cap-add CHECKPOINT_RESTORE --cap-add SYS_PTRACE
+#             --security-opt seccomp=unconfined --network database_default):
+#             the benchmark harness runs the checkpoint container (Agroal connects
+#             to Postgres), waits for it to exit, then docker commit to bake the
+#             checkpoint files in with a -XX:CRaCRestoreFrom entrypoint.
+FROM azul/zulu-openjdk:25-jdk-crac AS checkpoint-ready
+
+RUN groupadd -r quarkus && useradd -r -g quarkus -M quarkus
+
+WORKDIR /app
+
+# fast-jar layout: third-party libs first (change least often).
+COPY --from=build /app/build/quarkus-app/lib/ ./lib/
+COPY --from=build /app/build/quarkus-app/quarkus/ ./quarkus/
+COPY --from=build /app/build/quarkus-app/app/ ./app/
+COPY --from=build /app/build/quarkus-app/quarkus-run.jar ./
+
+RUN mkdir -p /checkpoint && chown quarkus:quarkus /checkpoint
+
+USER quarkus
+
+EXPOSE 8080
+
+ENV QUARKUS_LOG_LEVEL=WARN
+
+# quarkus.crac.generate=true instructs the quarkus-crac extension to call
+# Core.checkpointRestore() after startup, before accepting HTTP traffic.
+# Agroal connections are closed by the extension's beforeCheckpoint hook and
+# re-established after restore.
+ENTRYPOINT ["java", \
+  "-XX:InitialRAMPercentage=75.0", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-XX:+UseG1GC", \
+  "-XX:+OptimizeStringConcat", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-XX:CRaCCheckpointTo=/checkpoint", \
+  "-XX:CRaCMinPid=128", \
+  "-Dquarkus.crac.generate=true", \
+  "-jar", "quarkus-run.jar"]

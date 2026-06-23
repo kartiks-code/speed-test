@@ -62,6 +62,42 @@ src/main/java/org/openapitools/server/
 - `model/` and the generator scaffolding are generated artifacts — avoid hand edits; they may be overwritten on regeneration.
 - `api/*ServiceImpl.java` and everything under `db/` are the hand-written implementation. Preserve them if the project is regenerated.
 
+## GraalVM Native Image
+
+`Dockerfile.graalvm.broken` is kept for documentation — **the build fails and there is no current fix**.
+
+**Reliability: FAILS.** Helidon MicroProfile 4 uses Weld CDI + Jersey JAX-RS. During GraalVM native-image analysis, Weld creates JDK dynamic proxy objects for CDI beans and annotation instances. GraalVM cannot persist these proxy objects in the image heap because they are typed as runtime-generated classes, but Weld's initialization triggers them at build time. This creates a cascade:
+
+1. `com.fasterxml.jackson.core.Version` in `JacksonJsonProvider` → needs `--initialize-at-build-time`
+2. Adding that reveals CDI proxies for `jakarta.validation.Valid` (and other annotations) → same issue
+3. Each fix reveals the next layer of Weld/Jersey initialization conflicts
+
+The fundamental problem: Weld CDI was not designed for GraalVM native compilation. Quarkus avoids this by using ArC (its own CDI implementation designed specifically for native image). Spring Boot avoids it via AOT-generated static bean factories. Helidon MP has no equivalent.
+
+**Conclusion:** The `experimental` variant is not available for Helidon. Use `springboot experimental` or `quarkus experimental` instead — both produce sub-100 ms startup native binaries.
+
+## CRaC — Checkpoint/Restore (`Dockerfile.crac`)
+
+Appears as the **"crac"** variant in the frontend and CLI. Unlike Spring Boot (which has built-in `spring.context.checkpoint=onRefresh`), Helidon has no automatic checkpoint trigger, so `crac-checkpoint.sh` is used as the entrypoint: it starts the JVM, polls the health endpoint, then calls `jcmd JDK.checkpoint` once Helidon is ready.
+
+**Base image:** `azul/zulu-openjdk:25-jdk-crac` (Azul Zulu JDK 25 with CRaC/CRIU support, Ubuntu/glibc). Full JDK required for `jcmd`. BellSoft only goes to JDK 21 for CRaC; Azul has JDK 25.
+
+**Dependency:** `org.crac:crac` (`1.4.0`) is added to `pom.xml`. HikariCP 5.x has built-in CRaC support that activates when this library is on the classpath: `beforeCheckpoint` closes all pool connections, `afterRestore` re-creates them to the same DB. Helidon WebServer's socket lifecycle is also handled by the CRaC JDK runtime on restore.
+
+**Two-phase build performed by `run.sh`:**
+
+1. **Phase A — `docker build`**: builds the jar and produces the checkpoint-ready image with `ENTRYPOINT ["/app/crac-checkpoint.sh"]`. The script starts the JVM with `-XX:CRaCCheckpointTo=/checkpoint`, polls `http://localhost:8080/api/v3/pet/findByStatus?status=available` (60 s timeout), then calls `jcmd $JVM_PID JDK.checkpoint`. CRIU writes `/checkpoint` and the JVM exits. HikariCP connects to Postgres on the Docker network (default `initializationFailTimeout=1 ms`), so the DB **must be reachable** — `run.sh` adds `--network database_default` to the checkpoint container run.
+
+2. **Phase B — `docker run` + `docker commit`**: `run.sh` runs with `--cap-add CHECKPOINT_RESTORE --cap-add SYS_PTRACE --security-opt seccomp=unconfined --network database_default`, waits for exit, commits with `ENTRYPOINT ["java", "-XX:CRaCRestoreFrom=/checkpoint"]`. Restore is unprivileged.
+
+> **Compared to GraalVM:** The `experimental` variant is unavailable for Helidon (Weld CDI + Jersey proxy cascade breaks native-image). CRaC is Helidon's path to fast startup without a GraalVM build.
+
+Benchmark usage:
+```bash
+cd performance-tests
+VUS=3 DURATION=15s ./run.sh helidon crac
+```
+
 ## Mutation Testing
 
 [PIT](https://pitest.org) (pitest-maven 1.25.4) is configured in `pom.xml`.

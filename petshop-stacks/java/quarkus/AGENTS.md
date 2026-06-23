@@ -1,8 +1,12 @@
 # Java Quarkus Server — Agent Guide
 
-OpenAPI Petstore server on Quarkus 3.36.x (latest) with JAX-RS resources, Arc CDI, Agroal connection pooling, and plain-JDBC persistence. Built with Gradle 9.5.x (Groovy DSL) on Java 25. All endpoints run on virtual threads via `@RunOnVirtualThread`, and the optimized Docker image (`Dockerfile.optimized`) runs on Temurin 25 with `-XX:+UseG1GC`, `-XX:InitialRAMPercentage=75.0`/`-XX:MaxRAMPercentage=75.0`, `-XX:+OptimizeStringConcat`, and `QUARKUS_LOG_LEVEL=WARN` (set via image `ENV`) to cut per-request logging overhead.
+OpenAPI Petstore server on Quarkus 3.36.x (latest) with JAX-RS resources, Arc CDI, Agroal connection pooling, and plain-JDBC persistence. Built with Gradle 9.5.x (Groovy DSL) on Java 25. All endpoints run on virtual threads via `@RunOnVirtualThread`, and the optimized Docker image (`Dockerfile.optimized`) runs on Temurin 25 with `-XX:+UseG1GC`, `-XX:InitialRAMPercentage=75.0`/`-XX:MaxRAMPercentage=75.0`, `-XX:+OptimizeStringConcat`, and `QUARKUS_LOG_LEVEL=WARN` to cut per-request logging overhead.
 
 The optimized Docker image (`Dockerfile.optimized`) uses **fast-jar packaging with Quarkus build-time AppCDS**. The build stage overrides the repo-wide uber-jar setting on the Gradle CLI (`-Dquarkus.package.jar.type=fast-jar -Dquarkus.package.jar.aot.enabled=true -Dquarkus.package.jar.aot.type=app-cds` — the modern Quarkus 3.32+ AOT config; the older `quarkus.package.jar.appcds.enabled` is deprecated). Quarkus generates `build/quarkus-app/app-cds.jsa` itself during the build (no manual training stage, no DB needed). The runtime stage copies the fast-jar layout in cache-friendly order (`lib/`, `quarkus/`, `app/`, `quarkus-run.jar`) plus `app-cds.jsa` into `/app` and starts with `-XX:SharedArchiveFile=app-cds.jsa -jar quarkus-run.jar`. **Two CDS pitfalls:** (1) `app-cds.jsa` is a *dynamic* archive layered on the JVM's base archive (`lib/server/classes.jsa`), so the build and runtime stages must use the **same image** (`eclipse-temurin:25-jdk-alpine`) — a jlink'd `-jre-alpine` runtime has a different base archive and fails with "static archive header checksum verification failed". (2) The JAR/archive paths relative to the working directory must match generation time, hence `WORKDIR /app` mirroring the `quarkus-app` directory layout. Verify CDS health by adding `-Xshare:on -Xlog:cds=info` (hard-fails instead of silently falling back). The naive `Dockerfile` still relies on the global `quarkus.package.jar.type=uber-jar` from `gradle.properties` — don't change that file.
+
+The experimental Docker image (`Dockerfile.graalvm`) is the **GraalVM CE 25 native-image build**. It appears as the **"experimental"** variant in the frontend and CLI. See the GraalVM Native Image section below.
+
+The CRaC Docker image (`Dockerfile.crac`) snapshots a fully-warmed JVM process using **CRaC / CRIU** and restores it on startup. It appears as the **"crac"** variant in the frontend and CLI. See the CRaC section below.
 
 > **Why AppCDS and not Leyden AOT (`-XX:AOTCache`)?** Leyden's `-XX:AOTCache` (JEP 483) was tested but caused a consistent virtual-thread deadlock under Docker CPU limits (`--cpus 2`): the AOT-compiled Agroal path pinned both carrier threads, starving all other virtual threads. AppCDS archives only class metadata (no compiled code), so it does not interfere with JEP 491 virtual-thread scheduling.
 
@@ -66,6 +70,50 @@ src/main/java/org/openapitools/server/
 
 - `model/` and `*Api.java` interfaces are generated/adapted artifacts — avoid hand edits; they may be overwritten on regeneration.
 - `*ApiImpl.java` and everything under `db/` are the hand-written implementation. Preserve them if the project is regenerated.
+
+## GraalVM Native Image — Experimental (`Dockerfile.graalvm`)
+
+Appears as the **"experimental"** variant in the frontend and CLI. Builds a self-contained native binary using GraalVM CE 25.
+
+`Dockerfile.graalvm` **is the GraalVM native-image build**.
+
+**Reliability: HIGH.** GraalVM native image is a primary Quarkus feature. Every extension used here (`quarkus-rest`, `quarkus-rest-jackson`, `quarkus-jdbc-postgresql`, `quarkus-agroal`, `quarkus-hibernate-validator`) ships built-in native image metadata — no manual reflection hint files are needed.
+
+Virtual threads (`@RunOnVirtualThread`) work in GraalVM native image since JDK 21. The virtual-thread + Agroal deadlock documented above for `Dockerfile.optimized` was specific to Leyden AOT compiled code running on the JVM; SubstrateVM has its own scheduler and is not affected.
+
+**Build:** `./gradlew build -x test -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false` (in Quarkus 3.32+, `quarkus.package.jar.type=native` is no longer valid — native is not a JAR type. `quarkus.native.enabled=true` is the correct flag; `quarkus.package.jar.enabled=false` prevents Quarkus from trying to produce both the uber-jar configured in `gradle.properties` and the native binary simultaneously).
+
+**Output:** `build/*-runner` Linux native binary (~60 MB on disk, ~80 MB RSS).
+
+**Startup:** 13 ms JVM start; ~119 ms container-to-HTTP-ready.
+
+Benchmark usage (via `performance-tests/run.sh`):
+```bash
+cd performance-tests
+VUS=3 DURATION=15s ./run.sh quarkus experimental
+```
+
+## CRaC — Checkpoint/Restore (`Dockerfile.crac`)
+
+Appears as the **"crac"** variant in the frontend and CLI. Uses **CRaC / CRIU** to snapshot the running JVM (including Agroal-connected state) and restore it on each benchmark start.
+
+**Base image:** `azul/zulu-openjdk:25-jdk-crac` (Azul Zulu JDK 25 with CRaC/CRIU support, Ubuntu/glibc). BellSoft only goes to JDK 21 for CRaC; Azul has JDK 25.
+
+**Dependency:** `io.quarkus:quarkus-crac` is added to `build.gradle`. This extension registers `beforeCheckpoint`/`afterRestore` hooks for Agroal, Vert.x, and Netty — ensuring connections are cleanly closed before checkpoint and re-opened after restore. It also responds to `quarkus.crac.generate=true` by calling `Core.checkpointRestore()` after startup (before accepting HTTP traffic). The extension is a no-op on non-CRaC JDKs so it does not affect naive/optimized/experimental builds.
+
+**Two-phase build performed by `run.sh`:**
+
+1. **Phase A — `docker build`**: produces a fast-jar (no AppCDS) inside the checkpoint-ready image. The `ENTRYPOINT` starts Quarkus with `-XX:CRaCCheckpointTo=/checkpoint -Dquarkus.crac.generate=true`. Agroal connects to Postgres on the Docker network, the extension closes connections and calls `Core.checkpointRestore()`, CRIU writes `/checkpoint`, and the JVM exits.
+
+2. **Phase B — `docker run` + `docker commit`**: `run.sh` runs the image with `--cap-add CHECKPOINT_RESTORE --cap-add SYS_PTRACE --security-opt seccomp=unconfined --network database_default`, waits for exit, then commits with `ENTRYPOINT ["java", "-XX:CRaCRestoreFrom=/checkpoint"]`. The benchmark container needs no special caps.
+
+> **Virtual-thread compatibility:** The Leyden AOT deadlock (Agroal + virtual threads + `--cpus 2`) was specific to AOT-compiled code paths. CRaC snapshots native HotSpot state without modifying the JIT, so this issue does not apply here.
+
+Benchmark usage:
+```bash
+cd performance-tests
+VUS=3 DURATION=15s ./run.sh quarkus crac
+```
 
 ## Mutation Testing
 

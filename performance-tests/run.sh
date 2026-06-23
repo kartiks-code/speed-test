@@ -2,12 +2,13 @@
 # run.sh — Benchmark orchestrator for the Petstore multi-stack speed test.
 #
 # Usage:
-#   ./run.sh all                         # run all stacks, both variants
+#   ./run.sh all                         # run all stacks, both variants (naive+optimized)
 #   ./run.sh all naive                   # all stacks, naive Dockerfile only
 #   ./run.sh all optimized               # all stacks, Dockerfile.optimized only
 #   ./run.sh go                          # single stack, both variants
 #   ./run.sh go naive                    # single stack, single variant
 #   ./run.sh go,springboot optimized     # comma-separated stacks
+#   ./run.sh springboot crac             # CRaC variant (springboot/helidon/quarkus only)
 #
 # Environment overrides:
 #   VUS           number of k6 virtual users (default: 20)
@@ -19,7 +20,7 @@
 #   PGUSER        Postgres user (default: myuser)
 #   PGPASSWORD    Postgres password (default: mypassword)
 #   LARAVEL_APP_KEY   Required for Laravel; generate with: php artisan key:generate --show
-#   RAILS_SECRET_KEY_BASE  Required for Rails optimized; generate with: ruby -rsecurerandom -e 'puts SecureRandom.hex(64)'
+#   RAILS_SECRET_KEY_BASE  Optional for Rails optimized (auto-generated if unset)
 #   PHOENIX_SECRET_KEY_BASE  Optional for Phoenix
 #   NO_BUILD      Set to 1 to skip docker build (use existing images)
 #   KEEP_RESULTS  Set to 1 to keep results even on failure (default: clean up on error)
@@ -133,11 +134,17 @@ write_env_file() {
             ;;
         rails)
             local secret="${RAILS_SECRET_KEY_BASE:-}"
-            if [[ -z "$secret" ]]; then
-                warn "RAILS_SECRET_KEY_BASE not set — Rails production container may fail. Generate with: ruby -rsecurerandom -e 'puts SecureRandom.hex(64)'"
-            else
-                echo "SECRET_KEY_BASE=${secret}" >> "$tmp"
+            if [[ -z "$secret" && "$variant" == "optimized" ]]; then
+                if command -v ruby >/dev/null 2>&1; then
+                    secret=$(ruby -rsecurerandom -e 'puts SecureRandom.hex(64)')
+                else
+                    secret=$(openssl rand -hex 64)
+                fi
+                warn "RAILS_SECRET_KEY_BASE not set — generated ephemeral SECRET_KEY_BASE for optimized run"
+            elif [[ -z "$secret" ]]; then
+                warn "RAILS_SECRET_KEY_BASE not set — not required for naive (development) variant"
             fi
+            [[ -n "$secret" ]] && echo "SECRET_KEY_BASE=${secret}" >> "$tmp"
             ;;
         phoenix)
             local secret="${PHOENIX_SECRET_KEY_BASE:-}"
@@ -150,6 +157,10 @@ write_env_file() {
     local env_expr='.env'
     if [[ "$variant" == "optimized" ]]; then
         env_expr='(.env + (.env_optimized // {}))'
+    elif [[ "$variant" == "experimental" ]]; then
+        env_expr='(.env + (.env_experimental // {}))'
+    elif [[ "$variant" == "crac" ]]; then
+        env_expr='(.env + (.env_crac // {}))'
     fi
     while IFS="=" read -r key val; do
         case "$val" in
@@ -248,6 +259,14 @@ run_one() {
         # variant is used as-is when an override is provided
     elif [[ "$variant" == "optimized" ]]; then
         dockerfile="Dockerfile.optimized"
+    elif [[ "$variant" == "experimental" ]]; then
+        # Use dockerfile_experimental from stacks.json, falling back to Dockerfile.graalvm
+        dockerfile=$(stack_field "$stack_id" "dockerfile_experimental")
+        [[ -z "$dockerfile" ]] && dockerfile="Dockerfile.graalvm"
+    elif [[ "$variant" == "crac" ]]; then
+        # Use dockerfile_crac from stacks.json, falling back to Dockerfile.crac
+        dockerfile=$(stack_field "$stack_id" "dockerfile_crac")
+        [[ -z "$dockerfile" ]] && dockerfile="Dockerfile.crac"
     else
         dockerfile="Dockerfile"
         variant="naive"
@@ -277,6 +296,49 @@ run_one() {
         log "Build complete"
     else
         log "Skipping build (NO_BUILD=1)"
+    fi
+
+    # ── 1b. CRaC two-phase checkpoint ────────────────────────────────────
+    # The 'crac' variant requires a checkpoint-ready image (phase A, built
+    # above) to be run with elevated capabilities so the JVM can call CRIU
+    # and write its state to /checkpoint.  After the container exits the
+    # harness commits it with a -XX:CRaCRestoreFrom entrypoint, producing
+    # the final restore image stored under the same $image_name.
+    # This phase is skipped when NO_BUILD=1 (the committed image already exists).
+    if [[ "$variant" == "crac" && "$NO_BUILD" == "0" ]]; then
+        local cp_container="${container_name}-checkpoint"
+        docker rm -f "$cp_container" &>/dev/null || true
+
+        local cp_env_file
+        cp_env_file=$(write_env_file "$stack_id" "$variant")
+
+        log "CRaC: running checkpoint container $cp_container ..."
+        log "CRaC: (requires CHECKPOINT_RESTORE + SYS_PTRACE caps + seccomp=unconfined)"
+        # Run on the Docker network so Agroal/HikariCP can connect to Postgres.
+        # Memory + CPU limits match the benchmark environment so heap sizing in
+        # the checkpoint matches the restore container at benchmark time.
+        docker run \
+            --name "$cp_container" \
+            --network "$DOCKER_NETWORK" \
+            --cpus "$APP_CPUS" \
+            --memory "$APP_MEMORY" \
+            --cap-add CHECKPOINT_RESTORE \
+            --cap-add SYS_PTRACE \
+            --security-opt seccomp=unconfined \
+            --env-file "$cp_env_file" \
+            "$image_name" 2>&1 | tee -a "$results_dir/build.log" || true
+        rm -f "$cp_env_file"
+
+        log "CRaC: committing restore image as $image_name ..."
+        # Overwrite $image_name with the committed container that now has
+        # /checkpoint populated.  The new ENTRYPOINT restores from checkpoint.
+        docker commit \
+            --change 'ENTRYPOINT ["java", "-XX:CRaCRestoreFrom=/checkpoint"]' \
+            --change 'CMD []' \
+            "$cp_container" \
+            "$image_name" >> "$results_dir/build.log" 2>&1
+        docker rm "$cp_container" &>/dev/null || true
+        log "CRaC: restore image ready — benchmark will start from checkpoint"
     fi
 
     # Cleanup any stale container from previous run
@@ -316,6 +378,10 @@ run_one() {
     local host_port_field
     if [[ "$variant" == "optimized" ]]; then
         host_port_field="host_port_optimized"
+    elif [[ "$variant" == "experimental" ]]; then
+        host_port_field="host_port_experimental"
+    elif [[ "$variant" == "crac" ]]; then
+        host_port_field="host_port_crac"
     else
         host_port_field="host_port"
     fi
@@ -511,10 +577,12 @@ parse_stack_list() {
 parse_variants() {
     local arg="${1:-both}"
     case "$arg" in
-        naive)      echo "naive" ;;
-        optimized)  echo "optimized" ;;
-        both|"")    echo -e "naive\noptimized" ;;
-        *)          die "Unknown variant '$arg'. Use: naive, optimized, or omit for both." ;;
+        naive)        echo "naive" ;;
+        optimized)    echo "optimized" ;;
+        experimental) echo "experimental" ;;
+        crac)         echo "crac" ;;
+        both|"")      echo -e "naive\noptimized" ;;
+        *)            die "Unknown variant '$arg'. Use: naive, optimized, experimental, crac, or omit for both." ;;
     esac
 }
 
@@ -522,10 +590,12 @@ parse_variants() {
 
 main() {
     [[ $# -ge 1 ]] || {
-        echo "Usage: $0 <stack|all|stack1,stack2> [naive|optimized]"
+        echo "Usage: $0 <stack|all|stack1,stack2> [naive|optimized|experimental|crac]"
         echo "       $0 all"
         echo "       $0 go naive"
         echo "       $0 go,springboot optimized"
+        echo "       $0 springboot experimental"
+        echo "       $0 springboot,helidon,quarkus crac"
         exit 1
     }
 

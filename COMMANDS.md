@@ -162,3 +162,43 @@ Elixir/Phoenix has no OpenAPI Generator server target. The `petshop-stacks/elixi
 is hand-written using `mix phx.new --no-ecto --no-html` and **Postgrex** for raw SQL
 persistence. See `petshop-stacks/elixir/phoenix/AGENTS.md` for setup and conventions.
 
+---
+
+## 14. Rust — Actix-web
+
+No OpenAPI Generator server target exists for Actix-web. The `petshop-stacks/rust/actix/` project
+is hand-written using **Actix-web 4** and **sqlx** for async PostgreSQL access. SQL patterns
+and row-mapping helpers are mirrored from the hyper stack. See `petshop-stacks/rust/actix/AGENTS.md`.
+
+---
+
+## 15. Go — Fiber
+
+No OpenAPI Generator server target exists for Fiber. The `petshop-stacks/go/fiber/` project
+is hand-written using **Fiber v2**. The `Store` interface and `PostgresStore` SQL are copied from
+the Gin stack (framework-agnostic). See `petshop-stacks/go/fiber/AGENTS.md`.
+
+---
+
+## 16. Node.js — Fastify
+
+No OpenAPI Generator server target exists for Fastify. The `petshop-stacks/nodejs/fastify/` project
+is hand-written using **Fastify 4**. The `db/` repository layer is shared with the Express stack
+(framework-agnostic `pg` queries). See `petshop-stacks/nodejs/fastify/AGENTS.md`.
+
+---
+
+## 17. Bun — Elysia
+
+No OpenAPI Generator server target exists for Elysia. The `petshop-stacks/bun/elysia/` project
+is hand-written using **Elysia** on the **Bun** runtime and the `postgres` package for DB access.
+See `petshop-stacks/bun/elysia/AGENTS.md`.
+
+---
+
+## 18. C++ — Drogon
+
+No OpenAPI Generator server target exists for Drogon. The `petshop-stacks/cpp/drogon/` project
+is hand-written using **Drogon** and its async Postgres client. Pure helper functions
+(row mapping, config) are extracted for unit-testability with **doctest**. See `petshop-stacks/cpp/drogon/AGENTS.md`.
+

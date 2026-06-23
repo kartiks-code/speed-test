@@ -18,6 +18,10 @@ dependencies {
     implementation 'io.quarkus:quarkus-jdbc-postgresql'
     implementation 'io.quarkus:quarkus-agroal'
     implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
+    // CRaC: registers beforeCheckpoint/afterRestore hooks for Agroal, Vert.x, and
+    // Netty; quarkus.crac.generate=true (set in Dockerfile.crac ENTRYPOINT) triggers
+    // Core.checkpointRestore() after startup.  No-op on non-CRaC JDKs.
+    implementation 'io.quarkus:quarkus-crac'
 
     testImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
     testImplementation 'io.quarkus:quarkus-junit5'

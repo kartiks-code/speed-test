@@ -1,0 +1,52 @@
+# Stage 1: dependency cache — only re-runs when pom.xml changes
+FROM maven:3.9-eclipse-temurin-25-alpine AS deps
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+# Stage 2: build
+FROM deps AS build
+COPY src ./src
+RUN mvn package -DskipTests -q
+
+# Stage 3: CRaC checkpoint-ready image.
+# Azul Zulu JDK 25 with CRaC/CRIU support (Ubuntu/glibc).
+# BellSoft only publishes CRaC images up to JDK 21; Azul publishes JDK 25.
+# Class files are platform-neutral so mixing Alpine build stages with a
+# glibc runtime stage is safe for pure-Java applications.
+#
+# HOW THIS VARIANT WORKS (two-phase build in run.sh):
+#   Phase A — docker build: produces this image with ENTRYPOINT crac-checkpoint.sh.
+#             The script starts the JVM with -XX:CRaCCheckpointTo=/checkpoint,
+#             polls the health endpoint, then calls jcmd JDK.checkpoint once
+#             Helidon is ready.  HikariCP's built-in CRaC support (org.crac:crac
+#             on the classpath) closes connections in beforeCheckpoint and reopens
+#             them after restore.  The JVM exits after writing the CRIU files.
+#   Phase B — docker run (--cap-add CHECKPOINT_RESTORE --cap-add SYS_PTRACE
+#             --security-opt seccomp=unconfined --network database_default):
+#             the benchmark harness runs this image on the Docker network so
+#             HikariCP can connect to Postgres during startup, waits for exit,
+#             then docker commit to bake /checkpoint files into the final image
+#             with a -XX:CRaCRestoreFrom entrypoint.
+FROM azul/zulu-openjdk:25-jdk-crac AS checkpoint-ready
+
+# curl is used by crac-checkpoint.sh to poll the Helidon health endpoint.
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r helidon && useradd -r -g helidon -M helidon
+
+WORKDIR /app
+
+COPY --from=build /app/target/petstore-helidon.jar app.jar
+COPY --from=build /app/target/libs libs
+
+COPY crac-checkpoint.sh /app/crac-checkpoint.sh
+RUN chmod +x /app/crac-checkpoint.sh
+
+RUN mkdir -p /checkpoint && chown helidon:helidon /checkpoint
+
+USER helidon:helidon
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/crac-checkpoint.sh"]

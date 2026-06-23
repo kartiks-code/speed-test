@@ -56,13 +56,17 @@ app.get("/api/stacks", (req, res) => {
     const buildCtx = path.join(REPO_ROOT, stack.build_context);
     let files = [];
     try {
-      files = readdirSync(buildCtx).filter((f) => f.startsWith("Dockerfile"));
+      // Match "Dockerfile" and "Dockerfile.<single-word>" only.
+      // Excludes archived/broken variants like Dockerfile.graalvm.broken or Dockerfile.optimized.archive.
+      files = readdirSync(buildCtx).filter((f) => /^Dockerfile(\.[^.]+)?$/.test(f));
     } catch (_) {}
 
     const variants = files
       .map((f) => {
         if (f === "Dockerfile") return { label: "naive", dockerfile: "Dockerfile" };
         if (f === "Dockerfile.optimized") return { label: "optimized", dockerfile: "Dockerfile.optimized" };
+        if (f === "Dockerfile.graalvm") return { label: "experimental", dockerfile: "Dockerfile.graalvm" };
+        if (f === "Dockerfile.crac") return { label: "crac", dockerfile: "Dockerfile.crac" };
         // e.g. Dockerfile.alpine → alpine
         const suffix = f.replace(/^Dockerfile\.?/, "");
         return { label: suffix || "default", dockerfile: f };

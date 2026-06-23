@@ -1,6 +1,6 @@
 # Performance Tests — Agent Guide
 
-Docker-based benchmark harness for the Petstore multi-language speed test. Builds each stack as a Docker image, starts it against the shared Postgres container, runs a k6 CRUD load test, and collects RPS, latency, CPU, RAM, and Postgres statistics. All 12 stacks are supported, each in a `naive` variant (stock Dockerfile) and an `optimized` variant (`Dockerfile.optimized`).
+Docker-based benchmark harness for the Petstore multi-language speed test. Builds each stack as a Docker image, starts it against the shared Postgres container, runs a k6 CRUD load test, and collects RPS, latency, CPU, RAM, and Postgres statistics. All 17 stacks are supported, each in a `naive` variant (stock Dockerfile) and an `optimized` variant (`Dockerfile.optimized`).
 
 See `README.md` for operator-facing usage (prerequisites, quick start, environment variables, host ports, k6 scripts). See `viewer/README.md` for the React SPA; see `server/README.md` for the control-server API.
 
@@ -103,35 +103,98 @@ Each entry is an object with these fields:
 
 ## Host Port Assignments
 
-Each stack gets two unique host ports (naive / optimized) so all 24 containers can run simultaneously. All containers still bind internally on **8080**; only the host-side mapping differs.
+Each stack gets two unique host ports (naive / optimized) so all containers can run simultaneously. All containers bind internally on **8080**; only the host-side mapping differs. Stacks with an experimental variant (`Dockerfile.graalvm`) get a third port; the three Java stacks with a CRaC variant (`Dockerfile.crac`) get a fourth.
 
-| Stack | Naive | Optimized |
-|---|---|---|
-| go | 8081 | 8082 |
-| springboot | 8083 | 8084 |
-| helidon | 8085 | 8086 |
-| quarkus | 8087 | 8088 |
-| nodejs | 8089 | 8090 |
-| python | 8091 | 8092 |
-| rust | 8093 | 8094 |
-| csharp | 8095 | 8096 |
-| laravel | 8097 | 8098 |
-| rails | 8099 | 8100 |
-| ktor | 8101 | 8102 |
-| phoenix | 8103 | 8104 |
+| Stack | Naive | Optimized | Experimental | CRaC |
+|---|---|---|---|---|
+| go | 8081 | 8082 | — | — |
+| springboot | 8083 | 8084 | 8115 (GraalVM native) | 8118 |
+| helidon | 8085 | 8086 | — | 8119 |
+| quarkus | 8087 | 8088 | 8117 (GraalVM native) | 8120 |
+| nodejs | 8089 | 8090 | — | — |
+| python | 8091 | 8092 | — | — |
+| rust | 8093 | 8094 | — | — |
+| csharp | 8095 | 8096 | — | — |
+| laravel | 8097 | 8098 | — | — |
+| rails | 8099 | 8100 | — | — |
+| ktor | 8101 | 8102 | — | — |
+| phoenix | 8103 | 8104 | — | — |
+| actix | 8105 | 8106 | — | — |
+| fiber | 8107 | 8108 | — | — |
+| fastify | 8109 | 8110 | — | — |
+| elysia | 8111 | 8112 | — | — |
+| drogon | 8113 | 8114 | — | — |
 
-When adding a new stack, pick the next two available ports starting from 8105 and set `host_port` / `host_port_optimized` in `stacks.json`.
+When adding a new stack, pick the next two available ports starting from **8121** and set `host_port` / `host_port_optimized` in `stacks.json`. For an experimental variant, add `host_port_experimental`; for a CRaC variant, add `host_port_crac`.
 
 ## Adding a New Stack
 
 1. Add a `Dockerfile` (and optionally `Dockerfile.optimized`) to the project directory.
-2. Add an entry to `stacks.json` with all required fields. Set `POSTGRES_HOST` to `"speed-test-postgres"` and `POSTGRES_PORT` to `"5432"` (the in-network address of the Postgres container). Choose the next available `host_port` / `host_port_optimized` pair from the table above (start at 8105).
+2. Add an entry to `stacks.json` with all required fields. Set `POSTGRES_HOST` to `"speed-test-postgres"` and `POSTGRES_PORT` to `"5432"` (the in-network address of the Postgres container). Choose the next available `host_port` / `host_port_optimized` pair from the table above (start at 8118).
 3. Ensure the project's database exists: `cd database && ./create-databases.sh && ./apply-schemas.sh`.
 4. Smoke-test:
    ```bash
    VUS=3 DURATION=15s ./run.sh <stack_id> naive
    ```
 5. Check `results/<stack_id>-naive-<ts>/k6-summary.json` for errors. Check `container.log` if the container failed to start.
+
+## CRaC for Java Stacks (CRaC Variant)
+
+Spring Boot, Helidon, and Quarkus each have a `Dockerfile.crac` that uses **CRaC / CRIU** to snapshot a running JVM and restore it on each benchmark start. The control server and `run.sh` map this file to the **"crac"** variant label.
+
+**How it works (two-phase build):** `run.sh` first builds the checkpoint-ready image (`docker build`), then runs it with elevated Linux capabilities to create the checkpoint (`docker run --cap-add CHECKPOINT_RESTORE --cap-add SYS_PTRACE --security-opt seccomp=unconfined --network database_default`), then commits the stopped container as the final restore image (`docker commit --change 'ENTRYPOINT ["java", "-XX:CRaCRestoreFrom=/checkpoint"]'`). The benchmark container starts from that committed image **without** special caps — restore is unprivileged.
+
+**Base image:** `azul/zulu-openjdk:25-jdk-crac` (Azul Zulu JDK 25 with CRaC/CRIU support, Ubuntu/glibc). BellSoft only publishes CRaC images up to JDK 21; Azul has JDK 25. Helidon uses the full JDK image (needed for `jcmd`); Spring Boot and Quarkus also use the JDK image.
+
+**Per-stack checkpoint mechanism:**
+| Stack | How checkpoint is triggered |
+|---|---|
+| springboot | `crac-checkpoint.sh` — Tomcat readiness (no DB), `jps` + `jcmd JDK.checkpoint` |
+| quarkus | `-Dquarkus.crac.generate=true` — `quarkus-crac` extension calls `Core.checkpointRestore()` after startup; JVM exits |
+| helidon | `crac-checkpoint.sh` starts JVM, polls health endpoint, then calls `jcmd $PID JDK.checkpoint`; JVM exits |
+
+**Dependency changes:**
+- Spring Boot: `org.crac:crac` added to `pom.xml` (version managed by Spring Boot BOM)
+- Helidon: `org.crac:crac:1.4.0` added to `pom.xml` (activates HikariCP's built-in CRaC hooks)
+- Quarkus: `io.quarkus:quarkus-crac` added to `build.gradle` (no-op on non-CRaC JDKs)
+
+**Expected characteristics vs JVM variants:**
+- Startup: < 100 ms container-to-HTTP-ready (vs ~1 s for Leyden/AppCDS optimized)
+- Throughput: comparable to `optimized` (HotSpot JIT is retained; warmth persists across restarts)
+- Memory: similar to `optimized` (~200–350 MB RSS)
+- Build time: longer than `optimized` — includes a checkpoint run + commit phase (but faster than GraalVM native)
+
+CLI / shell usage:
+```bash
+cd performance-tests
+VUS=3 DURATION=15s ./run.sh springboot crac
+VUS=3 DURATION=15s ./run.sh helidon crac
+VUS=3 DURATION=15s ./run.sh quarkus crac
+```
+
+## GraalVM Native Image for Java Stacks (Experimental Variant)
+
+Quarkus, Spring Boot, and Helidon each have a `Dockerfile.graalvm` that builds a GraalVM CE 25 native binary. The control server maps this file to the **"experimental"** variant label in the frontend and CLI. Running `experimental` from the frontend or passing `experimental` to `run.sh` or the CLI automatically uses the native build. Each has its own `host_port_experimental` port in `stacks.json` so it can run alongside the JVM variants.
+
+**Confirmed results from smoke tests:**
+| Stack | Result | Startup | Notes |
+|---|---|---|---|
+| quarkus | **WORKS** ✅ | 13 ms JVM / 119 ms container-ready | All Quarkus extensions carry built-in native metadata |
+| springboot | **WORKS** ✅ | ~143 ms container-ready | Needed `reflect-config.json` for `RFC3339DateFormat` |
+| helidon | **REMOVED** — | N/A | Weld CDI + Jersey proxy cascade; `Dockerfile.graalvm.broken` kept for documentation only |
+
+**Expected characteristics vs JVM variants:**
+- Startup: < 100 ms (vs 1–3 s for JVM)
+- Throughput: comparable to optimized JVM under steady load; no JIT warmup period
+- Memory: ~80–150 MB RSS (vs 200–400 MB for JVM)
+- Build time: 5–10 min (native-image is CPU-intensive)
+
+CLI / shell usage:
+```bash
+cd performance-tests
+VUS=3 DURATION=15s ./run.sh quarkus experimental
+VUS=3 DURATION=15s ./run.sh springboot experimental
+```
 
 ## Viewer (`viewer/`)
 

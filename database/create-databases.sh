@@ -45,6 +45,11 @@ DATABASES=(
   "ruby-rails"
   "kotlin-ktor"
   "elixir-phoenix"
+  "rust-actix"
+  "go-fiber"
+  "nodejs-fastify"
+  "bun-elysia"
+  "cpp-drogon"
 )
 
 echo "Connecting to PostgreSQL at ${PGHOST}:${PGPORT} as '${PGUSER}'"

@@ -37,6 +37,11 @@ Keep the database list in sync across scripts and docs:
 - `ruby-rails`
 - `kotlin-ktor`
 - `elixir-phoenix`
+- `rust-actix`
+- `go-fiber`
+- `nodejs-fastify`
+- `bun-elysia`
+- `cpp-drogon`
 
 The same list appears in `create-databases.sh`, `apply-schemas.sh`, and `DEVELOPER.md`.
 

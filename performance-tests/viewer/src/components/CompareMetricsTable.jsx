@@ -100,13 +100,15 @@ function DeltaCell({ value, bestValue, col }) {
     return <span className="delta-high">+{abs}{col.unit ? col.unit : ""}</span>;
   }
 
-  const delta = col.higherIsBetter
-    ? (bestValue - value) / bestValue * 100
-    : (value - bestValue) / bestValue * 100;
+  // Relative change vs leader: negative when worse on higher-is-better metrics (e.g. RPS),
+  // positive when worse on lower-is-better metrics (e.g. latency, errors).
+  const delta = (value - bestValue) / bestValue * 100;
 
-  if (delta < 0.05) return <span className="delta-leader">0%</span>;
-  const cls = delta < 20 ? "delta-low" : delta < 60 ? "delta-mid" : "delta-high";
-  return <span className={cls}>+{delta.toFixed(1)}%</span>;
+  if (Math.abs(delta) < 0.05) return <span className="delta-leader">0%</span>;
+  const magnitude = Math.abs(delta);
+  const cls = magnitude < 20 ? "delta-low" : magnitude < 60 ? "delta-mid" : "delta-high";
+  const sign = delta >= 0 ? "+" : "";
+  return <span className={cls}>{sign}{delta.toFixed(1)}%</span>;
 }
 
 function buildExtendedCols(columns) {

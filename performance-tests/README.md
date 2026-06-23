@@ -1,6 +1,6 @@
 # Petstore Performance Benchmark Harness
 
-A language-agnostic Docker harness that benchmarks all 12 Petstore server implementations (Go, Java Spring Boot, Java Helidon, Java Quarkus, Node.js, Python, Rust, C# ASP.NET Core, PHP Laravel, Ruby Rails, Kotlin Ktor, Elixir Phoenix) against the same PostgreSQL instance, collecting RPS, latency percentiles, CPU, RAM, and Postgres statistics.
+A language-agnostic Docker harness that benchmarks all 17 Petstore server implementations (Go Gin, Go Fiber, Java Spring Boot, Java Helidon, Java Quarkus, Node.js Express, Node.js Fastify, Python, Rust hyper, Rust Actix-web, C# ASP.NET Core, PHP Laravel, Ruby Rails, Kotlin Ktor, Elixir Phoenix, Bun Elysia, C++ Drogon) against the same PostgreSQL instance, collecting RPS, latency percentiles, CPU, RAM, and Postgres statistics.
 
 Each stack ships a `Dockerfile` (**naive** — stock dependencies, no tuning) and a `Dockerfile.optimized` (**optimized** — multi-stage build, slim base image, JVM flags, connection pool tuning, etc.). Both variants are benchmarked so you can see the raw performance floor and what careful optimization buys.
 
@@ -30,6 +30,11 @@ Three components work together:
 | `rails` | Ruby | Rails |
 | `ktor` | Kotlin | Ktor |
 | `phoenix` | Elixir | Phoenix |
+| `actix` | Rust | Actix-web 4 |
+| `fiber` | Go | Fiber v2 |
+| `fastify` | Node.js | Fastify 4 |
+| `elysia` | Bun | Elysia |
+| `drogon` | C++ | Drogon |
 
 ---
 
@@ -193,8 +198,13 @@ Each stack publishes a unique host port so containers can run side-by-side for d
 | rails | 8099 | 8100 |
 | ktor | 8101 | 8102 |
 | phoenix | 8103 | 8104 |
+| actix | 8105 | 8106 |
+| fiber | 8107 | 8108 |
+| fastify | 8109 | 8110 |
+| elysia | 8111 | 8112 |
+| drogon | 8113 | 8114 |
 
-Port pairs are defined in `stacks.json` (`host_port` / `host_port_optimized`). New stacks start at 8105.
+Port pairs are defined in `stacks.json` (`host_port` / `host_port_optimized`). New stacks start at 8115.
 
 ---
 

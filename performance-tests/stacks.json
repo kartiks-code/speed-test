@@ -25,9 +25,13 @@
     "build_context": "petshop-stacks/java/springboot",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
+    "dockerfile_experimental": "Dockerfile.graalvm",
+    "dockerfile_crac": "Dockerfile.crac",
     "db_name": "java-springboot",
     "host_port": 8083,
     "host_port_optimized": 8084,
+    "host_port_experimental": 8115,
+    "host_port_crac": 8118,
     "base_path": "/api/v3",
     "readiness_path": "/api/v3/pet/findByStatus?status=available",
     "readiness_timeout": 120,
@@ -45,9 +49,11 @@
     "build_context": "petshop-stacks/java/helidon",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
+    "dockerfile_crac": "Dockerfile.crac",
     "db_name": "java-helidon",
     "host_port": 8085,
     "host_port_optimized": 8086,
+    "host_port_crac": 8119,
     "base_path": "/api/v3",
     "readiness_path": "/api/v3/pet/findByStatus?status=available",
     "readiness_timeout": 120,
@@ -65,9 +71,13 @@
     "build_context": "petshop-stacks/java/quarkus",
     "dockerfile": "Dockerfile",
     "dockerfile_optimized": "Dockerfile.optimized",
+    "dockerfile_experimental": "Dockerfile.graalvm",
+    "dockerfile_crac": "Dockerfile.crac",
     "db_name": "java-quarkus",
     "host_port": 8087,
     "host_port_optimized": 8088,
+    "host_port_experimental": 8117,
+    "host_port_crac": 8120,
     "base_path": "/api/v3",
     "readiness_path": "/api/v3/pet/findByStatus?status=available",
     "readiness_timeout": 120,
@@ -249,6 +259,103 @@
       "POSTGRES_USER": "myuser",
       "POSTGRES_PASSWORD": "mypassword",
       "POSTGRES_DB": "elixir-phoenix"
+    }
+  },
+  {
+    "id": "actix",
+    "label": "Rust (Actix-web)",
+    "build_context": "petshop-stacks/rust/actix",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "rust-actix",
+    "host_port": 8105,
+    "host_port_optimized": 8106,
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "rust-actix",
+      "BIND_ADDR": "0.0.0.0:8080"
+    }
+  },
+  {
+    "id": "fiber",
+    "label": "Go (Fiber)",
+    "build_context": "petshop-stacks/go/fiber",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "go-fiber",
+    "host_port": 8107,
+    "host_port_optimized": 8108,
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "go-fiber",
+      "POSTGRES_SSLMODE": "disable"
+    }
+  },
+  {
+    "id": "fastify",
+    "label": "Node.js (Fastify)",
+    "build_context": "petshop-stacks/nodejs/fastify",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "nodejs-fastify",
+    "host_port": 8109,
+    "host_port_optimized": 8110,
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "nodejs-fastify"
+    }
+  },
+  {
+    "id": "elysia",
+    "label": "Bun (Elysia)",
+    "build_context": "petshop-stacks/bun/elysia",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "bun-elysia",
+    "host_port": 8111,
+    "host_port_optimized": 8112,
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "bun-elysia"
+    }
+  },
+  {
+    "id": "drogon",
+    "label": "C++ (Drogon)",
+    "build_context": "petshop-stacks/cpp/drogon",
+    "dockerfile": "Dockerfile",
+    "dockerfile_optimized": "Dockerfile.optimized",
+    "db_name": "cpp-drogon",
+    "host_port": 8113,
+    "host_port_optimized": 8114,
+    "base_path": "/api/v3",
+    "readiness_path": "/api/v3/pet/findByStatus?status=available",
+    "env": {
+      "POSTGRES_HOST": "speed-test-postgres",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "myuser",
+      "POSTGRES_PASSWORD": "mypassword",
+      "POSTGRES_DB": "cpp-drogon"
     }
   }
 ]

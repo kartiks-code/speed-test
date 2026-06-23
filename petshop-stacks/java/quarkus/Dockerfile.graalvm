@@ -1,0 +1,57 @@
+# Quarkus GraalVM native-image build.
+#
+# Quarkus has first-class native image support: every extension (quarkus-rest,
+# quarkus-rest-jackson, quarkus-jdbc-postgresql, quarkus-agroal,
+# quarkus-hibernate-validator) ships built-in GraalVM reflection metadata, so
+# no manual hint files are required.
+#
+# Build time: 5–10 min (native-image is CPU-intensive).
+# Startup:    < 100 ms (vs ~2 s for the JVM variants).
+# Memory:     ~80 MB RSS (vs ~200–350 MB for JVM variants).
+#
+# NOTE: virtual threads (@RunOnVirtualThread) work in GraalVM native image
+# since JDK 21. The Leyden AOT deadlock documented in Dockerfile.optimized
+# was JVM-specific; SubstrateVM has its own thread scheduler.
+
+# ── Stage 1: build native binary ────────────────────────────────────────────
+FROM ghcr.io/graalvm/native-image-community:25 AS build
+
+WORKDIR /app
+
+# Cache Gradle dependency resolution separately from the application code.
+COPY gradlew .
+COPY gradle ./gradle
+COPY build.gradle settings.gradle gradle.properties ./
+RUN ./gradlew dependencies -q 2>/dev/null || true
+
+COPY src ./src
+
+# quarkus.native.enabled=true triggers native-image compilation (Quarkus 3.9+).
+# quarkus.package.jar.enabled=false prevents Quarkus from trying to produce
+# both the uber-jar (from gradle.properties) AND the native binary simultaneously,
+# which is not supported.
+RUN ./gradlew build -x test -q \
+    -Dquarkus.native.enabled=true \
+    -Dquarkus.package.jar.enabled=false
+
+# ── Stage 2: minimal runtime — native binary, no JRE required ───────────────
+FROM debian:12-slim AS runtime
+
+RUN groupadd -r quarkus && useradd -r -g quarkus quarkus
+
+WORKDIR /app
+
+# The native runner lands in build/ as <rootProject.name>-<version>-runner.
+# The wildcard handles the version token regardless of what Gradle resolves.
+COPY --from=build /app/build/*-runner ./petstore-quarkus
+RUN chown quarkus:quarkus ./petstore-quarkus
+
+USER quarkus
+
+EXPOSE 8080
+
+# Suppress request-level logging for cleaner benchmark output.
+ENV QUARKUS_LOG_LEVEL=WARN
+# Native binary still reads QUARKUS_DATASOURCE_JDBC_MAX_SIZE at runtime.
+
+ENTRYPOINT ["./petstore-quarkus"]

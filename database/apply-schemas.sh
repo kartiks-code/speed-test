@@ -20,6 +20,11 @@ DATABASES=(
   ruby-rails
   kotlin-ktor
   elixir-phoenix
+  rust-actix
+  go-fiber
+  nodejs-fastify
+  bun-elysia
+  cpp-drogon
 )
 
 for db in "${DATABASES[@]}"; do

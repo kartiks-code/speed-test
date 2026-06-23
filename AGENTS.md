@@ -10,18 +10,25 @@ This repository implements the **same OpenAPI Petstore API in multiple languages
 | `COMMANDS.md` | OpenAPI Generator command for each target | — |
 | `database/` | Shared PostgreSQL (Docker Compose), schema, create/apply scripts | `database/AGENTS.md` |
 | `petshop-stacks/go/gin/` | Go + Gin server | `petshop-stacks/go/gin/AGENTS.md` |
+| `petshop-stacks/go/fiber/` | Go + Fiber v2 server (hand-written) | `petshop-stacks/go/fiber/AGENTS.md` |
 | `petshop-stacks/java/springboot/` | Java 25 + Spring Boot 3.5 server | `petshop-stacks/java/springboot/AGENTS.md` |
 | `petshop-stacks/java/helidon/` | Java 21 + Helidon MP 4 server | `petshop-stacks/java/helidon/AGENTS.md` |
 | `petshop-stacks/java/quarkus/` | Java 25 + Quarkus 3.36.x server (Gradle) | `petshop-stacks/java/quarkus/AGENTS.md` |
 | `petshop-stacks/nodejs/express/` | Node.js + Express server | `petshop-stacks/nodejs/express/AGENTS.md` |
 | `petshop-stacks/python/fastapi/` | Python + FastAPI server | `petshop-stacks/python/fastapi/AGENTS.md` |
 | `petshop-stacks/rust/hyper/` | Rust + hyper server | `petshop-stacks/rust/hyper/AGENTS.md` |
+| `petshop-stacks/rust/actix/` | Rust + Actix-web 4 server | `petshop-stacks/rust/actix/AGENTS.md` |
 | `petshop-stacks/csharp/aspnetcore/` | C# + ASP.NET Core 8 server | `petshop-stacks/csharp/aspnetcore/AGENTS.md` |
 | `petshop-stacks/php/laravel/` | PHP + Laravel server | `petshop-stacks/php/laravel/AGENTS.md` |
 | `petshop-stacks/ruby/rails/` | Ruby + Rails server | `petshop-stacks/ruby/rails/AGENTS.md` |
 | `petshop-stacks/kotlin/ktor/` | Kotlin + Ktor server | `petshop-stacks/kotlin/ktor/AGENTS.md` |
 | `petshop-stacks/elixir/phoenix/` | Elixir + Phoenix server (hand-written) | `petshop-stacks/elixir/phoenix/AGENTS.md` |
-| `performance-tests/` | Language-agnostic Docker benchmark harness; runs all 12 server stacks (`naive` + `optimized` variants), collects RPS/latency/CPU/RAM/Postgres stats; includes a results viewer + control server | `performance-tests/AGENTS.md` |
+| `petshop-stacks/rust/actix/` | Rust + Actix-web 4 server (hand-written) | `petshop-stacks/rust/actix/AGENTS.md` |
+| `petshop-stacks/go/fiber/` | Go + Fiber v2 server (hand-written) | `petshop-stacks/go/fiber/AGENTS.md` |
+| `petshop-stacks/nodejs/fastify/` | Node.js + Fastify 4 server (hand-written) | `petshop-stacks/nodejs/fastify/AGENTS.md` |
+| `petshop-stacks/bun/elysia/` | Bun + Elysia server (hand-written) | `petshop-stacks/bun/elysia/AGENTS.md` |
+| `petshop-stacks/cpp/drogon/` | C++ + Drogon server (hand-written) | `petshop-stacks/cpp/drogon/AGENTS.md` |
+| `performance-tests/` | Language-agnostic Docker benchmark harness; runs all 17 server stacks (`naive` + `optimized` variants), collects RPS/latency/CPU/RAM/Postgres stats; includes a results viewer + control server | `performance-tests/AGENTS.md` |
 
 ## The Core Workflow
 
@@ -45,15 +52,21 @@ Always run commands from the project's own directory. The database must be up fi
 | `petshop-stacks/nodejs/express` | `npm install` | `npm test` | `npm start` |
 | `petshop-stacks/python/fastapi` | `pip install -r requirements.txt` | `PYTHONPATH=src pytest tests` | `PYTHONPATH=src uvicorn petstore.main:app --port 8080` |
 | `petshop-stacks/rust/hyper` | `cargo build` | `cargo test` | `cargo run --example petstore-server-server` |
+| `petshop-stacks/rust/actix` | `cargo build` | `cargo test` | `cargo run` |
 | `petshop-stacks/csharp/aspnetcore` | `dotnet build` | `dotnet test` | `dotnet run --project src/Petstore` |
 | `petshop-stacks/php/laravel` | `composer install` | `php artisan test` | `php artisan serve --port=8080` |
 | `petshop-stacks/ruby/rails` | `bundle install` | `bundle exec rspec` | `bundle exec rails server -p 8080` |
 | `petshop-stacks/kotlin/ktor` | `./gradlew build` | `./gradlew test` | `./gradlew run` |
 | `petshop-stacks/elixir/phoenix` | `mix deps.get && mix compile` | `mix test` | `mix phx.server` |
+| `petshop-stacks/rust/actix` | `cargo build` | `cargo test` | `cargo run` |
+| `petshop-stacks/go/fiber` | `go build ./...` | `go test ./...` | `go run main.go` |
+| `petshop-stacks/nodejs/fastify` | `npm install` | `npm test` | `npm start` |
+| `petshop-stacks/bun/elysia` | `bun install` | `bun test` | `bun run index.ts` |
+| `petshop-stacks/cpp/drogon` | `cmake -B build && cmake --build build` | `cd build && ctest` | `./build/petstore-drogon` |
 
 ## Mutation Testing
 
-Every project (except Rust which has limited test coverage) has a mutation testing tool configured. All mutation tools use the same DB-free unit tests, so no PostgreSQL is required.
+Every project has a mutation testing tool configured. All mutation tools use the same DB-free unit tests, so no PostgreSQL is required.
 
 | Project | Tool | Command |
 |---|---|---|
@@ -64,18 +77,24 @@ Every project (except Rust which has limited test coverage) has a mutation testi
 | `petshop-stacks/python/fastapi` | [mutmut](https://mutmut.readthedocs.io) 2.x | `PYTHONPATH=src mutmut run` |
 | `petshop-stacks/go/gin` | [gremlins](https://gremlins.dev) | `gremlins unleash --coverpkg github.com/GIT_USER_ID/GIT_REPO_ID/go --integration --timeout-coefficient 100 ./go` |
 | `petshop-stacks/rust/hyper` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
+| `petshop-stacks/rust/actix` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
 | `petshop-stacks/csharp/aspnetcore` | [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/) | `dotnet stryker` |
 | `petshop-stacks/php/laravel` | [Infection](https://infection.github.io) | `./vendor/bin/infection` |
 | `petshop-stacks/ruby/rails` | [mutant](https://github.com/mbj/mutant) | `bundle exec mutant run` |
 | `petshop-stacks/kotlin/ktor` | [PIT](https://pitest.org) | `./gradlew pitest` |
 | `petshop-stacks/elixir/phoenix` | [muzak](https://github.com/devonestes/muzak) | `mix muzak` (best-effort; see AGENTS.md) |
+| `petshop-stacks/rust/actix` | [cargo-mutants](https://mutants.rs) | `cargo mutants` |
+| `petshop-stacks/go/fiber` | [gremlins](https://gremlins.dev) | `gremlins unleash --coverpkg github.com/GIT_USER_ID/GIT_REPO_ID/go --integration --timeout-coefficient 100 ./go` |
+| `petshop-stacks/nodejs/fastify` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (after `npm install`) |
+| `petshop-stacks/bun/elysia` | [Stryker](https://stryker-mutator.io) | `npm run mutate` (command runner with `bun test`; best-effort) |
+| `petshop-stacks/cpp/drogon` | [mull](https://github.com/mull-project/mull) | `mull-runner` (LLVM bitcode build required; best-effort; see AGENTS.md) |
 
 Each project's `AGENTS.md` has the install step and a description of what is mutated vs. excluded.
 
 ### Notes for cross-project tasks (e.g. "build test cases for all projects")
 
-- **Existing test coverage is uneven.** Go (`petshop-stacks/go/gin/go/*_test.go`), Helidon (`src/test/...`), Python (`petshop-stacks/python/fastapi/tests/`), and Spring Boot have some tests; **Node.js has no test runner wired** (only `start`/`prestart` scripts), and Rust tests are minimal. Treat adding tests as net-new work where missing.
-- **Follow each language's idioms** rather than forcing one pattern: Go `testing`, JUnit 5 (Maven Surefire), `pytest`, Rust `#[test]`/`cargo test`, and Mocha+Chai for Node (a `test` script must be added to `petshop-stacks/nodejs/express/package.json`).
+- **Existing test coverage is uneven.** Go (`petshop-stacks/go/gin/go/*_test.go`), Helidon (`src/test/...`), Python (`petshop-stacks/python/fastapi/tests/`), Spring Boot, Node.js Express, Node.js Fastify, Bun Elysia, Rust Actix, Go Fiber, and C++ Drogon have test suites; Rust hyper tests are limited to helpers/config. Treat adding tests as net-new work where missing.
+- **Follow each language's idioms** rather than forcing one pattern: Go `testing`, JUnit 5 (Maven Surefire), `pytest`, Rust `#[test]`/`cargo test`, Mocha+Chai for Node, `bun:test` for Bun, and `doctest`/`ctest` for C++.
 - **DB-dependent tests need a running database.** Prefer the per-project pattern: e.g. Go gates integration tests behind `TEST_DATABASE_DSN`; mirror that opt-in approach so unit tests stay runnable without Postgres.
 - **Keep behavior identical across stacks** — the same request should produce the same result everywhere. When writing test cases, the shared conventions below are the contract to assert against.
 
@@ -100,14 +119,20 @@ Defaults (from `database/.env`): host `localhost`, port `5434`, user `myuser`, p
 | Quarkus | `java-quarkus` |
 | Node.js | `nodejs-express` |
 | Python | `python-fastapi` |
-| Rust | `rust-server` |
+| Rust (hyper) | `rust-server` |
+| Rust (Actix-web) | `rust-actix` |
 | C# ASP.NET Core | `csharp-aspnetcore` |
 | PHP Laravel | `php-laravel` |
 | Ruby Rails | `ruby-rails` |
 | Kotlin Ktor | `kotlin-ktor` |
 | Elixir Phoenix | `elixir-phoenix` |
+| Rust Actix-web | `rust-actix` |
+| Go Fiber | `go-fiber` |
+| Node.js Fastify | `nodejs-fastify` |
+| Bun Elysia | `bun-elysia` |
+| C++ Drogon | `cpp-drogon` |
 
-> Connection **defaults differ per project**: Node.js, Python, Spring Boot, and Rust default to the shared `5434` / `myuser` / `mypassword`. Go and Helidon default to port `5432` and other credentials, so override their `POSTGRES_*` env vars (or pass a full DSN) when targeting the shared stack. See each project's `AGENTS.md`.
+> Connection **defaults differ per project**: Node.js, Python, Spring Boot, Rust, and the new Fastify/Elysia stacks default to the shared `5434` / `myuser` / `mypassword`. Go (gin and fiber) default to port `5432`; Helidon also defaults to `5432` and other credentials. Override their `POSTGRES_*` env vars (or pass a full DSN) when targeting the shared stack. See each project's `AGENTS.md`.
 
 ## Shared Persistence Conventions
 

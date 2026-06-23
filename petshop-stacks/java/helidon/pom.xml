@@ -22,6 +22,58 @@
         <maven.compiler.source>25</maven.compiler.source>
     </properties>
 
+    <!-- GraalVM native-image profile: mvn -Pnative-image package -DskipTests -->
+    <profiles>
+        <profile>
+            <id>native-image</id>
+            <dependencies>
+                <!-- Helidon 4 native-image support: CDI/JAX-RS reflection configs,
+                     resource registrations, and SubstrateVM initialisation hooks. -->
+                <dependency>
+                    <groupId>io.helidon.integrations.graal</groupId>
+                    <artifactId>helidon-graal-native-image-extension</artifactId>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <version>0.10.5</version>
+                        <extensions>true</extensions>
+                        <executions>
+                            <execution>
+                                <id>build-native</id>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <imageName>petstore-helidon</imageName>
+                            <buildArgs>
+                                <buildArg>--no-fallback</buildArg>
+                                <buildArg>-O2</buildArg>
+                                <!--
+                                  Jersey's JacksonJsonProvider holds a static jackson-core
+                                  Version object; GraalVM requires it to be build-time init.
+                                  Weld CDI scanning during analysis touches these classes
+                                  before Jackson declares its own init policy, so we force
+                                  build-time init for the Jackson version infrastructure.
+                                -->
+                                <buildArg>--initialize-at-build-time=com.fasterxml.jackson.core.Version</buildArg>
+                                <buildArg>--initialize-at-build-time=com.fasterxml.jackson.core.util.VersionUtil</buildArg>
+                                <buildArg>--initialize-at-build-time=com.fasterxml.jackson.databind.cfg.PackageVersion</buildArg>
+                                <buildArg>--initialize-at-build-time=com.fasterxml.jackson.datatype.jsr310.PackageVersion</buildArg>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
     <dependencies>
         <dependency>
             <groupId>io.helidon.microprofile.bundles</groupId>
@@ -79,6 +131,14 @@
             <artifactId>mockito-junit-jupiter</artifactId>
             <version>5.14.2</version>
             <scope>test</scope>
+        </dependency>
+        <!-- CRaC: enables HikariCP 5.x built-in beforeCheckpoint/afterRestore hooks
+             for Dockerfile.crac.  jcmd triggers the checkpoint externally via
+             crac-checkpoint.sh; this library wires the pool lifecycle to CRaC events. -->
+        <dependency>
+            <groupId>org.crac</groupId>
+            <artifactId>crac</artifactId>
+            <version>1.4.0</version>
         </dependency>
     </dependencies>
 
