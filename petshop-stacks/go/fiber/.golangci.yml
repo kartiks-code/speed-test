@@ -1,0 +1,46 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    # Correctness
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - bodyclose
+    - sqlclosecheck
+    - nilerr
+    - noctx
+    # Style & readability
+    - gofmt
+    - goimports
+    - revive
+    - gocritic
+    # Complexity
+    - cyclop
+    # Security
+    - gosec
+    # Modernize (Go 1.21+)
+    - modernize
+
+linters-settings:
+  cyclop:
+    max-complexity: 15
+  gosec:
+    excludes:
+      - G115 # integer overflow conversion: false positives on int32 casts from DB
+  revive:
+    rules:
+      - name: exported
+        disabled: true # hand-written server, not a library
+
+issues:
+  exclude-rules:
+    # Test helpers may use unexported identifiers freely.
+    - path: _test\.go
+      linters: [gosec]

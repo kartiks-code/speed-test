@@ -3,7 +3,6 @@ package petstore
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -38,28 +37,22 @@ func parseInt64Param(c *fiber.Ctx, name string) (int64, bool) {
 }
 
 func queryList(c *fiber.Ctx, name string) []string {
-	raw := string(c.Request().URI().QueryString())
-	parsed, err := url.ParseQuery(raw)
-	if err != nil {
-		return nil
-	}
-	return compactStrings(parsed[name])
+	args := c.Request().URI().QueryArgs()
+	var values []string
+	args.VisitAll(func(key, val []byte) {
+		if string(key) == name {
+			values = append(values, string(val))
+		}
+	})
+	return compactStrings(values)
 }
 
 func optionalQuery(c *fiber.Ctx, name string) *string {
-	raw := string(c.Request().URI().QueryString())
-	parsed, err := url.ParseQuery(raw)
-	if err != nil {
+	args := c.Request().URI().QueryArgs()
+	if !args.Has(name) {
 		return nil
 	}
-	vals, ok := parsed[name]
-	if !ok {
-		return nil
-	}
-	v := ""
-	if len(vals) > 0 {
-		v = vals[0]
-	}
+	v := string(args.Peek(name))
 	return &v
 }
 

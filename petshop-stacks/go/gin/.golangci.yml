@@ -1,0 +1,51 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    # Correctness
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - bodyclose
+    - sqlclosecheck
+    - nilerr
+    - noctx
+    # Style & readability
+    - gofmt
+    - goimports
+    - revive
+    - gocritic
+    # Complexity
+    - cyclop
+    # Security
+    - gosec
+    # Modernize (Go 1.21+)
+    - modernize
+
+linters-settings:
+  cyclop:
+    max-complexity: 15
+  gosec:
+    excludes:
+      - G115 # integer overflow conversion: false positives on int32 casts from DB
+  revive:
+    rules:
+      - name: exported
+        disabled: true # generated model files don't have full doc comments
+  modernize:
+    # All modernize checks enabled for Go 1.25
+
+issues:
+  exclude-rules:
+    # Generated router file — tab-aligned struct literal is from the generator.
+    - path: go/routers\.go
+      linters: [gofmt]
+    # Test helpers may use unexported identifiers freely.
+    - path: _test\.go
+      linters: [gosec]

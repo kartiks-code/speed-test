@@ -297,21 +297,18 @@ func (s *PostgresStore) UpdateUser(ctx context.Context, username string, user Us
 	if username == "" {
 		return false, ErrInvalidInput
 	}
-	if _, err := s.GetUserByUsername(ctx, username); err != nil {
+	existing, err := s.GetUserByUsername(ctx, username)
+	if err != nil {
 		return false, err
 	}
 	if user.Username == "" {
 		user.Username = username
 	}
 	if user.Id == 0 {
-		existing, err := s.GetUserByUsername(ctx, username)
-		if err != nil {
-			return false, err
-		}
 		user.Id = existing.Id
 	}
 
-	_, err := s.db.ExecContext(ctx, `
+	_, err = s.db.ExecContext(ctx, `
 		UPDATE "user"
 		SET id = $1, username = $2, first_name = $3, last_name = $4, email = $5, password = $6, phone = $7, user_status = $8
 		WHERE username = $9`,
@@ -581,7 +578,10 @@ func validOrderStatus(status string) bool {
 }
 
 func compactStrings(values []string) []string {
-	var compacted []string
+	if len(values) == 0 {
+		return values
+	}
+	compacted := make([]string, 0, len(values))
 	for _, value := range values {
 		for _, part := range strings.Split(value, ",") {
 			part = strings.TrimSpace(part)

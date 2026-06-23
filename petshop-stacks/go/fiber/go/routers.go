@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
@@ -20,10 +21,10 @@ func NewFiberApp(routes ApiHandleFunctions) *fiber.App {
 		DisableStartupMessage: true,
 	})
 
-	if os.Getenv("FIBER_DISABLE_REQUEST_LOGGING") != "true" {
-		// logger middleware omitted by default for performance; enable by unsetting the env var
-	}
 	app.Use(recover.New())
+	if os.Getenv("FIBER_DISABLE_REQUEST_LOGGING") != "true" {
+		app.Use(logger.New())
+	}
 
 	api := app.Group("/api/v3")
 
