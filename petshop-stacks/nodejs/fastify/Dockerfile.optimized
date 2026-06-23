@@ -9,6 +9,8 @@ RUN addgroup -S petstore && adduser -S petstore -G petstore
 WORKDIR /app
 COPY --from=builder /app .
 USER petstore
-ENV NODE_ENV=production PG_POOL_MAX=100
+# 2 cluster workers match the harness --cpus 2 limit; 2 workers x PG_POOL_MAX=100
+# gives at most 200 DB connections, staying well under Postgres max_connections=500.
+ENV NODE_ENV=production WEB_CONCURRENCY=2 PG_POOL_MAX=100
 EXPOSE 8080
-CMD ["node", "index.js"]
+CMD ["node", "cluster.js"]

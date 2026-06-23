@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Petstore.Models;
 
 namespace Petstore.Repositories
@@ -7,28 +8,28 @@ namespace Petstore.Repositories
     public interface IPetstoreRepository
     {
         // Pet
-        Pet AddPet(Pet pet);
-        bool DeletePet(long petId);
-        List<Pet> FindPetsByStatus(string status);
-        List<Pet> FindPetsByTags(List<string> tags);
-        Pet GetPetById(long petId);
-        Pet UpdatePet(Pet pet);
-        bool UpdatePetWithForm(long petId, string name, string status);
-        ApiResponse UploadFile(long petId, string additionalMetadata, Stream fileData);
+        Task<Pet> AddPet(Pet pet);
+        Task<bool> DeletePet(long petId);
+        Task<List<Pet>> FindPetsByStatus(string status);
+        Task<List<Pet>> FindPetsByTags(List<string> tags);
+        Task<Pet> GetPetById(long petId);
+        Task<Pet> UpdatePet(Pet pet);
+        Task<bool> UpdatePetWithForm(long petId, string name, string status);
+        Task<ApiResponse> UploadFile(long petId, string additionalMetadata, Stream fileData);
 
         // Store
-        bool DeleteOrder(long orderId);
-        Dictionary<string, int> GetInventory();
-        Order GetOrderById(long orderId);
-        Order PlaceOrder(Order order);
+        Task<bool> DeleteOrder(long orderId);
+        Task<Dictionary<string, int>> GetInventory();
+        Task<Order> GetOrderById(long orderId);
+        Task<Order> PlaceOrder(Order order);
 
         // User
-        User CreateUser(User user);
-        User CreateUsersWithListInput(List<User> users);
-        bool DeleteUser(string username);
-        User GetUserByName(string username);
-        string LoginUser(string username, string password);
-        void LogoutUser();
-        bool UpdateUser(string username, User user);
+        Task<User> CreateUser(User user);
+        Task<User> CreateUsersWithListInput(List<User> users);
+        Task<bool> DeleteUser(string username);
+        Task<User> GetUserByName(string username);
+        Task<string> LoginUser(string username, string password);
+        Task LogoutUser();
+        Task<bool> UpdateUser(string username, User user);
     }
 }

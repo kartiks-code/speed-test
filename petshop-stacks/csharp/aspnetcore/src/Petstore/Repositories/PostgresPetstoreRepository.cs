@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Dapper;
 using Newtonsoft.Json;
 using Npgsql;
@@ -48,8 +49,8 @@ namespace Petstore.Repositories
             return $"{connectionString};Maximum Pool Size={poolSize}";
         }
 
-        private NpgsqlConnection OpenConnection() =>
-            _dataSource.OpenConnection();
+        private async Task<NpgsqlConnection> OpenConnectionAsync() =>
+            await _dataSource.OpenConnectionAsync();
 
         // ── Status helpers ─────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ namespace Petstore.Repositories
 
         private static Pet MapPetRow(dynamic row)
         {
-            var pet = new Pet
+            return new Pet
             {
                 Id        = row.id,
                 Name      = row.name,
@@ -104,7 +105,6 @@ namespace Petstore.Repositories
                     ? StringToPetStatus((string)row.status)
                     : default
             };
-            return pet;
         }
 
         // ── Order row → model ──────────────────────────────────────────
@@ -141,145 +141,150 @@ namespace Petstore.Repositories
 
         // ══════════════════════ PET OPERATIONS ════════════════════════
 
-        public Pet AddPet(Pet pet)
+        public async Task<Pet> AddPet(Pet pet)
         {
-            using var conn = OpenConnection();
-            if (pet.Id == 0)
-                pet.Id = conn.QuerySingle<long>("SELECT nextval('pet_id_seq')");
-
+            await using var conn = await OpenConnectionAsync();
             var categoryJson  = pet.Category  != null ? JsonConvert.SerializeObject(pet.Category)  : null;
             var photoUrlsJson = JsonConvert.SerializeObject(pet.PhotoUrls ?? new List<string>());
             var tagsJson      = pet.Tags != null ? JsonConvert.SerializeObject(pet.Tags) : null;
             var statusStr     = PetStatusToString(pet.Status);
 
-            conn.Execute(
+            // Single round-trip: COALESCE handles Id=0 (auto-assign via sequence) vs Id>0
+            pet.Id = await conn.QuerySingleAsync<long>(
                 @"INSERT INTO pet (id, name, category, photo_urls, tags, status)
-                  VALUES (@Id, @Name, @Category::json, @PhotoUrls::json, @Tags::json, @Status::pet_status)
+                  VALUES (COALESCE(NULLIF(@Id, 0), nextval('pet_id_seq')), @Name, @Category::json, @PhotoUrls::json, @Tags::json, @Status::pet_status)
                   ON CONFLICT (id) DO UPDATE SET
                       name       = EXCLUDED.name,
                       category   = EXCLUDED.category,
                       photo_urls = EXCLUDED.photo_urls,
                       tags       = EXCLUDED.tags,
-                      status     = EXCLUDED.status",
+                      status     = EXCLUDED.status
+                  RETURNING id",
                 new { Id = pet.Id, Name = pet.Name, Category = categoryJson,
                       PhotoUrls = photoUrlsJson, Tags = tagsJson, Status = statusStr });
 
             return pet;
         }
 
-        public bool DeletePet(long petId)
+        public async Task<bool> DeletePet(long petId)
         {
-            using var conn = OpenConnection();
-            var rows = conn.Execute("DELETE FROM pet WHERE id = @Id", new { Id = petId });
+            await using var conn = await OpenConnectionAsync();
+            var rows = await conn.ExecuteAsync("DELETE FROM pet WHERE id = @Id", new { Id = petId });
             return rows > 0;
         }
 
-        public List<Pet> FindPetsByStatus(string status)
+        public async Task<List<Pet>> FindPetsByStatus(string status)
         {
-            using var conn = OpenConnection();
+            await using var conn = await OpenConnectionAsync();
             IEnumerable<dynamic> rows;
             if (string.IsNullOrEmpty(status))
             {
-                rows = conn.Query<dynamic>(
+                rows = await conn.QueryAsync<dynamic>(
                     "SELECT id, name, category::text, photo_urls::text, tags::text, status::text FROM pet");
             }
             else
             {
-                rows = conn.Query<dynamic>(
+                rows = await conn.QueryAsync<dynamic>(
                     "SELECT id, name, category::text, photo_urls::text, tags::text, status::text FROM pet WHERE status::text = @Status",
                     new { Status = status });
             }
             return rows.Select(MapPetRow).ToList();
         }
 
-        public List<Pet> FindPetsByTags(List<string> tags)
+        public async Task<List<Pet>> FindPetsByTags(List<string> tags)
         {
-            using var conn = OpenConnection();
-            var allPets = conn.Query<dynamic>(
-                "SELECT id, name, category::text, photo_urls::text, tags::text, status::text FROM pet")
-                .Select(MapPetRow)
-                .ToList();
+            await using var conn = await OpenConnectionAsync();
 
             if (tags == null || tags.Count == 0)
-                return allPets;
+            {
+                var allRows = await conn.QueryAsync<dynamic>(
+                    "SELECT id, name, category::text, photo_urls::text, tags::text, status::text FROM pet");
+                return allRows.Select(MapPetRow).ToList();
+            }
 
-            return allPets.Where(p =>
-                p.Tags != null && p.Tags.Any(t => tags.Contains(t.Name))
-            ).ToList();
+            // Push tag filtering to the database using json_array_elements — avoids full table scan in C#
+            var rows = await conn.QueryAsync<dynamic>(
+                @"SELECT id, name, category::text, photo_urls::text, tags::text, status::text
+                  FROM pet
+                  WHERE tags IS NOT NULL
+                    AND EXISTS (
+                        SELECT 1 FROM json_array_elements(tags) elem
+                        WHERE elem->>'name' = ANY(@Tags)
+                    )",
+                new { Tags = tags.ToArray() });
+
+            return rows.Select(MapPetRow).ToList();
         }
 
-        public Pet GetPetById(long petId)
+        public async Task<Pet> GetPetById(long petId)
         {
-            using var conn = OpenConnection();
-            var row = conn.QueryFirstOrDefault<dynamic>(
+            await using var conn = await OpenConnectionAsync();
+            var row = await conn.QueryFirstOrDefaultAsync<dynamic>(
                 "SELECT id, name, category::text, photo_urls::text, tags::text, status::text FROM pet WHERE id = @Id",
                 new { Id = petId });
             return row == null ? null : MapPetRow(row);
         }
 
-        public Pet UpdatePet(Pet pet)
+        public async Task<Pet> UpdatePet(Pet pet)
         {
-            using var conn = OpenConnection();
-            var existing = conn.QueryFirstOrDefault<dynamic>(
-                "SELECT id FROM pet WHERE id = @Id", new { Id = pet.Id });
-            if (existing == null) return null;
-
+            await using var conn = await OpenConnectionAsync();
             var categoryJson  = pet.Category  != null ? JsonConvert.SerializeObject(pet.Category)  : null;
             var photoUrlsJson = JsonConvert.SerializeObject(pet.PhotoUrls ?? new List<string>());
             var tagsJson      = pet.Tags != null ? JsonConvert.SerializeObject(pet.Tags) : null;
             var statusStr     = PetStatusToString(pet.Status);
 
-            conn.Execute(
+            // Single round-trip: check affected rows instead of a prior SELECT
+            var rows = await conn.ExecuteAsync(
                 @"UPDATE pet SET name = @Name, category = @Category::json,
                       photo_urls = @PhotoUrls::json, tags = @Tags::json, status = @Status::pet_status
                   WHERE id = @Id",
                 new { Id = pet.Id, Name = pet.Name, Category = categoryJson,
                       PhotoUrls = photoUrlsJson, Tags = tagsJson, Status = statusStr });
 
-            return pet;
+            return rows > 0 ? pet : null;
         }
 
-        public bool UpdatePetWithForm(long petId, string name, string status)
+        public async Task<bool> UpdatePetWithForm(long petId, string name, string status)
         {
-            using var conn = OpenConnection();
-            var existing = conn.QueryFirstOrDefault<dynamic>(
-                "SELECT id, name, status::text FROM pet WHERE id = @Id", new { Id = petId });
-            if (existing == null) return false;
+            await using var conn = await OpenConnectionAsync();
 
-            var newName   = name   ?? (string)existing.name;
-            var newStatus = status ?? (string)existing.status;
+            // Single round-trip: COALESCE keeps existing value when parameter is null
+            var rows = await conn.ExecuteAsync(
+                @"UPDATE pet SET
+                      name   = COALESCE(@Name, name),
+                      status = CASE WHEN @Status IS NULL THEN status ELSE @Status::pet_status END
+                  WHERE id = @Id",
+                new { Id = petId, Name = name, Status = status });
 
-            conn.Execute(
-                "UPDATE pet SET name = @Name, status = @Status::pet_status WHERE id = @Id",
-                new { Id = petId, Name = newName, Status = newStatus });
-            return true;
+            return rows > 0;
         }
 
-        public ApiResponse UploadFile(long petId, string additionalMetadata, Stream fileData)
+        public async Task<ApiResponse> UploadFile(long petId, string additionalMetadata, Stream fileData)
         {
-            using var conn = OpenConnection();
-            var petExists = conn.QueryFirstOrDefault<dynamic>(
-                "SELECT id FROM pet WHERE id = @Id", new { Id = petId });
-            if (petExists == null) return null;
-
             byte[] bytes;
             using (var ms = new MemoryStream())
             {
-                fileData.CopyTo(ms);
+                await fileData.CopyToAsync(ms);
                 bytes = ms.ToArray();
             }
 
-            var photoId = conn.QuerySingle<long>(
-                "SELECT nextval('pet_photo_id_seq')");
+            await using var conn = await OpenConnectionAsync();
 
-            conn.Execute(
-                @"INSERT INTO pet_photo (id, pet_id, metadata, content)
-                  VALUES (@Id, @PetId, @Metadata, @Content)
-                  ON CONFLICT (id) DO UPDATE SET
-                      pet_id   = EXCLUDED.pet_id,
-                      metadata = EXCLUDED.metadata,
-                      content  = EXCLUDED.content",
-                new { Id = photoId, PetId = petId, Metadata = additionalMetadata, Content = bytes });
+            // Single round-trip CTE: verifies pet exists, gets next sequence id, and inserts —
+            // returns null rows (→ null) when the pet does not exist.
+            var photoId = await conn.QuerySingleOrDefaultAsync<long?>(
+                @"WITH check_pet AS (
+                      SELECT id FROM pet WHERE id = @PetId
+                  ),
+                  new_id AS (
+                      SELECT nextval('pet_photo_id_seq') AS id FROM check_pet
+                  )
+                  INSERT INTO pet_photo (id, pet_id, metadata, content)
+                  SELECT id, @PetId, @Metadata, @Content FROM new_id
+                  RETURNING id",
+                new { PetId = petId, Metadata = additionalMetadata, Content = bytes });
+
+            if (photoId == null) return null;
 
             return new ApiResponse
             {
@@ -290,17 +295,17 @@ namespace Petstore.Repositories
 
         // ══════════════════════ STORE OPERATIONS ══════════════════════
 
-        public bool DeleteOrder(long orderId)
+        public async Task<bool> DeleteOrder(long orderId)
         {
-            using var conn = OpenConnection();
-            var rows = conn.Execute("DELETE FROM \"order\" WHERE id = @Id", new { Id = orderId });
+            await using var conn = await OpenConnectionAsync();
+            var rows = await conn.ExecuteAsync("DELETE FROM \"order\" WHERE id = @Id", new { Id = orderId });
             return rows > 0;
         }
 
-        public Dictionary<string, int> GetInventory()
+        public async Task<Dictionary<string, int>> GetInventory()
         {
-            using var conn = OpenConnection();
-            var rows = conn.Query<dynamic>(
+            await using var conn = await OpenConnectionAsync();
+            var rows = await conn.QueryAsync<dynamic>(
                 "SELECT status::text AS status, COUNT(*)::int AS cnt FROM pet GROUP BY status");
             var result = new Dictionary<string, int>();
             foreach (var r in rows)
@@ -311,33 +316,32 @@ namespace Petstore.Repositories
             return result;
         }
 
-        public Order GetOrderById(long orderId)
+        public async Task<Order> GetOrderById(long orderId)
         {
-            using var conn = OpenConnection();
-            var row = conn.QueryFirstOrDefault<dynamic>(
+            await using var conn = await OpenConnectionAsync();
+            var row = await conn.QueryFirstOrDefaultAsync<dynamic>(
                 "SELECT id, pet_id, quantity, ship_date, status::text, complete FROM \"order\" WHERE id = @Id",
                 new { Id = orderId });
             return row == null ? null : MapOrderRow(row);
         }
 
-        public Order PlaceOrder(Order order)
+        public async Task<Order> PlaceOrder(Order order)
         {
-            using var conn = OpenConnection();
-            if (order.Id == 0)
-                order.Id = conn.QuerySingle<long>(
-                    "SELECT nextval('order_id_seq')");
-
+            await using var conn = await OpenConnectionAsync();
             var statusStr = OrderStatusToString(order.Status);
-            conn.Execute(
+
+            // Single round-trip: COALESCE handles Id=0 (auto-assign via sequence) vs Id>0
+            order.Id = await conn.QuerySingleAsync<long>(
                 @"INSERT INTO ""order"" (id, pet_id, quantity, ship_date, status, complete)
-                  VALUES (@Id, @PetId, @Quantity, @ShipDate, @Status::order_status, @Complete)
+                  VALUES (COALESCE(NULLIF(@Id, 0), nextval('order_id_seq')), @PetId, @Quantity, @ShipDate, @Status::order_status, @Complete)
                   ON CONFLICT (id) DO UPDATE SET
                       pet_id    = EXCLUDED.pet_id,
                       quantity  = EXCLUDED.quantity,
                       ship_date = EXCLUDED.ship_date,
                       status    = EXCLUDED.status,
-                      complete  = EXCLUDED.complete",
-                new { order.Id, PetId = order.PetId, order.Quantity,
+                      complete  = EXCLUDED.complete
+                  RETURNING id",
+                new { Id = order.Id, PetId = order.PetId, order.Quantity,
                       ShipDate = order.ShipDate == default ? (DateTime?)null : order.ShipDate,
                       Status = statusStr, order.Complete });
 
@@ -346,16 +350,31 @@ namespace Petstore.Repositories
 
         // ══════════════════════ USER OPERATIONS ═══════════════════════
 
-        public User CreateUser(User user)
+        public async Task<User> CreateUser(User user)
         {
-            using var conn = OpenConnection();
-            if (user.Id == 0)
-                user.Id = conn.QuerySingle<long>(
-                    "SELECT nextval('user_id_seq')");
+            await using var conn = await OpenConnectionAsync();
+            return await InsertUserAsync(conn, user);
+        }
 
-            conn.Execute(
+        public async Task<User> CreateUsersWithListInput(List<User> users)
+        {
+            if (users == null || users.Count == 0)
+                return null;
+
+            // Single connection shared across all inserts — avoids N connection acquisitions
+            await using var conn = await OpenConnectionAsync();
+            User last = null;
+            foreach (var u in users)
+                last = await InsertUserAsync(conn, u);
+            return last;
+        }
+
+        private static async Task<User> InsertUserAsync(NpgsqlConnection conn, User user)
+        {
+            // Single round-trip: COALESCE handles Id=0 (auto-assign via sequence) vs Id>0
+            user.Id = await conn.QuerySingleAsync<long>(
                 @"INSERT INTO ""user"" (id, username, first_name, last_name, email, password, phone, user_status)
-                  VALUES (@Id, @Username, @FirstName, @LastName, @Email, @Password, @Phone, @UserStatus)
+                  VALUES (COALESCE(NULLIF(@Id, 0), nextval('user_id_seq')), @Username, @FirstName, @LastName, @Email, @Password, @Phone, @UserStatus)
                   ON CONFLICT (username) DO UPDATE SET
                       id          = EXCLUDED.id,
                       first_name  = EXCLUDED.first_name,
@@ -363,54 +382,45 @@ namespace Petstore.Repositories
                       email       = EXCLUDED.email,
                       password    = EXCLUDED.password,
                       phone       = EXCLUDED.phone,
-                      user_status = EXCLUDED.user_status",
+                      user_status = EXCLUDED.user_status
+                  RETURNING id",
                 new { user.Id, user.Username, FirstName = user.FirstName,
                       LastName = user.LastName, user.Email, user.Password,
                       user.Phone, UserStatus = user.UserStatus });
-
             return user;
         }
 
-        public User CreateUsersWithListInput(List<User> users)
+        public async Task<bool> DeleteUser(string username)
         {
-            if (users == null || users.Count == 0)
-                return null;
-            User last = null;
-            foreach (var u in users)
-                last = CreateUser(u);
-            return last;
-        }
-
-        public bool DeleteUser(string username)
-        {
-            using var conn = OpenConnection();
-            var rows = conn.Execute(
+            await using var conn = await OpenConnectionAsync();
+            var rows = await conn.ExecuteAsync(
                 "DELETE FROM \"user\" WHERE username = @Username", new { Username = username });
             return rows > 0;
         }
 
-        public User GetUserByName(string username)
+        public async Task<User> GetUserByName(string username)
         {
-            using var conn = OpenConnection();
-            var row = conn.QueryFirstOrDefault<dynamic>(
+            await using var conn = await OpenConnectionAsync();
+            var row = await conn.QueryFirstOrDefaultAsync<dynamic>(
                 "SELECT id, username, first_name, last_name, email, password, phone, user_status FROM \"user\" WHERE username = @Username",
                 new { Username = username });
             return row == null ? null : MapUserRow(row);
         }
 
-        public string LoginUser(string username, string password)
+        public Task<string> LoginUser(string username, string password)
         {
-            return "logged-in";
+            return Task.FromResult("logged-in");
         }
 
-        public void LogoutUser()
+        public Task LogoutUser()
         {
+            return Task.CompletedTask;
         }
 
-        public bool UpdateUser(string username, User user)
+        public async Task<bool> UpdateUser(string username, User user)
         {
-            using var conn = OpenConnection();
-            var rows = conn.Execute(
+            await using var conn = await OpenConnectionAsync();
+            var rows = await conn.ExecuteAsync(
                 @"UPDATE ""user"" SET first_name = @FirstName, last_name = @LastName,
                       email = @Email, password = @Password, phone = @Phone, user_status = @UserStatus
                   WHERE username = @Username",

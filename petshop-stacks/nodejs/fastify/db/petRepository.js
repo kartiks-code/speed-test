@@ -1,5 +1,9 @@
 'use strict';
 const { query } = require('./pool');
+const cache = require('./cache');
+
+const INVENTORY_TTL = 5000; // 5 s
+const STATUS_TTL    = 3000; // 3 s
 
 const mapRow = (row) => ({
   id: row.id !== null ? Number(row.id) : undefined,
@@ -16,21 +20,23 @@ const mapRow = (row) => ({
   status: row.status || undefined,
 });
 
+// Invalidate all read-cache entries that depend on the pet table.
+const invalidatePetCache = () => {
+  cache.delete('inventory');
+  cache.deleteByPrefix('status:');
+};
+
 const add = async (pet) => {
-  let id;
-  if (pet.id != null) {
-    id = pet.id;
-  } else {
-    const { rows } = await query("SELECT nextval('pet_id_seq') AS id");
-    id = Number(rows[0].id);
-  }
-  await query(
+  // COALESCE assigns the sequence id when none is provided, eliminating the
+  // separate SELECT nextval round-trip. RETURNING gives back the actual id used.
+  const { rows } = await query(
     `INSERT INTO pet ("id", "name", category, photo_urls, tags, status)
-     VALUES ($1, $2, $3, cast($4 as json), cast($5 as json), cast($6 as pet_status))
+     VALUES (COALESCE($1::bigint, nextval('pet_id_seq')), $2, $3, cast($4 as json), cast($5 as json), cast($6 as pet_status))
      ON CONFLICT ("id") DO UPDATE SET "name"=EXCLUDED."name", category=EXCLUDED.category,
-     photo_urls=EXCLUDED.photo_urls, tags=EXCLUDED.tags, status=EXCLUDED.status`,
+     photo_urls=EXCLUDED.photo_urls, tags=EXCLUDED.tags, status=EXCLUDED.status
+     RETURNING "id"`,
     [
-      id,
+      pet.id != null ? pet.id : null,
       pet.name,
       pet.category != null ? JSON.stringify(pet.category) : null,
       JSON.stringify(pet.photoUrls),
@@ -38,7 +44,8 @@ const add = async (pet) => {
       pet.status || null,
     ],
   );
-  return { ...pet, id };
+  invalidatePetCache();
+  return { ...pet, id: Number(rows[0].id) };
 };
 
 const update = async (pet) => {
@@ -65,6 +72,7 @@ const update = async (pet) => {
     err.status = 404;
     throw err;
   }
+  invalidatePetCache();
   return pet;
 };
 
@@ -84,15 +92,21 @@ const findById = async (petId) => {
 
 const deletePet = async (petId) => {
   await query('DELETE FROM pet WHERE "id" = $1', [petId]);
+  invalidatePetCache();
 };
 
 const findByStatus = async (status) => {
+  const key = `status:${status}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
   const result = await query(
     `SELECT "id", "name", category, photo_urls, tags, status::text
      FROM pet WHERE status = cast($1 as pet_status)`,
     [status],
   );
-  return result.rows.map(mapRow);
+  const pets = result.rows.map(mapRow);
+  cache.set(key, pets, STATUS_TTL);
+  return pets;
 };
 
 const findByTags = async (tags) => {
@@ -121,24 +135,29 @@ const updateWithForm = async (petId, name, status) => {
   }
   params.push(petId);
   await query(`UPDATE pet SET ${sets.join(', ')} WHERE "id" = $${params.length}`, params);
+  invalidatePetCache();
 };
 
 const addPhoto = async (petId, content, contentType, metadata) => {
-  const exists = await query('SELECT 1 FROM pet WHERE "id" = $1', [petId]);
-  if (exists.rows.length === 0) {
+  // Single query: the INSERT only proceeds when the pet row exists (FROM pet WHERE "id" = $1),
+  // replacing the previous SELECT-then-INSERT pattern.
+  const result = await query(
+    `INSERT INTO pet_photo ("id", pet_id, content_type, metadata, content)
+     SELECT nextval('pet_photo_id_seq'), $1, $2, $3, $4
+     FROM pet WHERE "id" = $1`,
+    [petId, contentType, metadata, content],
+  );
+  if (result.rowCount === 0) {
     const err = new Error('Pet not found');
     err.status = 404;
     throw err;
   }
-  await query(
-    `INSERT INTO pet_photo ("id", pet_id, content_type, metadata, content)
-     VALUES (nextval('pet_photo_id_seq'), $1, $2, $3, $4)`,
-    [petId, contentType, metadata, content],
-  );
   return content ? content.length : 0;
 };
 
 const getInventory = async () => {
+  const cached = cache.get('inventory');
+  if (cached) return cached;
   const result = await query(
     "SELECT status::text, cast(COUNT(*) as int) as cnt FROM pet GROUP BY status",
     [],
@@ -147,6 +166,7 @@ const getInventory = async () => {
   for (const row of result.rows) {
     if (row.status != null) inventory[row.status] = row.cnt;
   }
+  cache.set('inventory', inventory, INVENTORY_TTL);
   return inventory;
 };
 

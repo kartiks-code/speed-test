@@ -140,6 +140,12 @@
             <artifactId>crac</artifactId>
             <version>1.4.0</version>
         </dependency>
+        <!-- In-process Caffeine cache for hot read paths (inventory, findById). -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.2.0</version>
+        </dependency>
     </dependencies>
 
     <build>

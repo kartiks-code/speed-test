@@ -6,6 +6,7 @@
 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
@@ -33,9 +34,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("AddPet")]
         [SwaggerResponse(statusCode: 200, type: typeof(Pet), description: "Successful operation")]
-        public virtual IActionResult AddPet([FromBody] Pet pet)
+        public virtual async Task<IActionResult> AddPet([FromBody] Pet pet)
         {
-            var result = _repo.AddPet(pet);
+            var result = await _repo.AddPet(pet);
             return new ObjectResult(result);
         }
 
@@ -44,11 +45,11 @@ namespace Petstore.Controllers
         [Route("/api/v3/pet/{petId}")]
         [ValidateModelState]
         [SwaggerOperation("DeletePet")]
-        public virtual IActionResult DeletePet(
+        public virtual async Task<IActionResult> DeletePet(
             [FromRoute(Name = "petId")][Required] long petId,
             [FromHeader(Name = "api_key")] string apiKey)
         {
-            var found = _repo.DeletePet(petId);
+            var found = await _repo.DeletePet(petId);
             return found ? StatusCode(200) : NotFound();
         }
 
@@ -58,9 +59,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("FindPetsByStatus")]
         [SwaggerResponse(statusCode: 200, type: typeof(List<Pet>), description: "successful operation")]
-        public virtual IActionResult FindPetsByStatus([FromQuery(Name = "status")] string status)
+        public virtual async Task<IActionResult> FindPetsByStatus([FromQuery(Name = "status")] string status)
         {
-            var result = _repo.FindPetsByStatus(status);
+            var result = await _repo.FindPetsByStatus(status);
             return new ObjectResult(result);
         }
 
@@ -70,9 +71,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("FindPetsByTags")]
         [SwaggerResponse(statusCode: 200, type: typeof(List<Pet>), description: "successful operation")]
-        public virtual IActionResult FindPetsByTags([FromQuery(Name = "tags")] List<string> tags)
+        public virtual async Task<IActionResult> FindPetsByTags([FromQuery(Name = "tags")] List<string> tags)
         {
-            var result = _repo.FindPetsByTags(tags);
+            var result = await _repo.FindPetsByTags(tags);
             return new ObjectResult(result);
         }
 
@@ -83,9 +84,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("GetPetById")]
         [SwaggerResponse(statusCode: 200, type: typeof(Pet), description: "successful operation")]
-        public virtual IActionResult GetPetById([FromRoute(Name = "petId")][Required] long petId)
+        public virtual async Task<IActionResult> GetPetById([FromRoute(Name = "petId")][Required] long petId)
         {
-            var pet = _repo.GetPetById(petId);
+            var pet = await _repo.GetPetById(petId);
             return pet == null ? NotFound() : new ObjectResult(pet);
         }
 
@@ -96,9 +97,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("UpdatePet")]
         [SwaggerResponse(statusCode: 200, type: typeof(Pet), description: "Successful operation")]
-        public virtual IActionResult UpdatePet([FromBody] Pet pet)
+        public virtual async Task<IActionResult> UpdatePet([FromBody] Pet pet)
         {
-            var result = _repo.UpdatePet(pet);
+            var result = await _repo.UpdatePet(pet);
             return result == null ? NotFound() : new ObjectResult(result);
         }
 
@@ -107,12 +108,12 @@ namespace Petstore.Controllers
         [Route("/api/v3/pet/{petId}")]
         [ValidateModelState]
         [SwaggerOperation("UpdatePetWithForm")]
-        public virtual IActionResult UpdatePetWithForm(
+        public virtual async Task<IActionResult> UpdatePetWithForm(
             [FromRoute(Name = "petId")][Required] long petId,
             [FromQuery(Name = "name")] string name,
             [FromQuery(Name = "status")] string status)
         {
-            var found = _repo.UpdatePetWithForm(petId, name, status);
+            var found = await _repo.UpdatePetWithForm(petId, name, status);
             return found ? StatusCode(200) : NotFound();
         }
 
@@ -123,12 +124,12 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("UploadFile")]
         [SwaggerResponse(statusCode: 200, type: typeof(ApiResponse), description: "successful operation")]
-        public virtual IActionResult UploadFile(
+        public virtual async Task<IActionResult> UploadFile(
             [FromRoute(Name = "petId")][Required] long petId,
             [FromQuery(Name = "additionalMetadata")] string additionalMetadata,
             [FromBody] System.IO.Stream body)
         {
-            var result = _repo.UploadFile(petId, additionalMetadata, body);
+            var result = await _repo.UploadFile(petId, additionalMetadata, body);
             return result == null ? NotFound() : new ObjectResult(result);
         }
     }

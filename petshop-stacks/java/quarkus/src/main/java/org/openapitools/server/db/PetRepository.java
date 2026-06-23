@@ -4,6 +4,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.quarkus.cache.CacheInvalidate;
+import io.quarkus.cache.CacheInvalidateAll;
+import io.quarkus.cache.CacheKey;
+import io.quarkus.cache.CacheResult;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
@@ -30,8 +34,9 @@ public class PetRepository {
     DataSource dataSource;
 
     private static final AtomicLong idGen = new AtomicLong(System.currentTimeMillis());
-    private final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
+    @CacheInvalidateAll(cacheName = "inventory")
     public Pet add(Pet pet) {
         try (Connection conn = dataSource.getConnection()) {
             long id = pet.getId() != null ? pet.getId() : idGen.getAndIncrement();
@@ -57,6 +62,8 @@ public class PetRepository {
         }
     }
 
+    @CacheInvalidateAll(cacheName = "pets")
+    @CacheInvalidateAll(cacheName = "inventory")
     public Pet update(Pet pet) {
         if (pet.getId() == null) {
             throw new WebApplicationException("Pet ID is required for update", Response.Status.BAD_REQUEST);
@@ -86,7 +93,8 @@ public class PetRepository {
         }
     }
 
-    public Pet findById(long petId) {
+    @CacheResult(cacheName = "pets")
+    public Pet findById(@CacheKey long petId) {
         try (Connection conn = dataSource.getConnection()) {
             String sql =
                 "SELECT \"id\", \"name\", category, photo_urls, tags, status::text " +
@@ -108,7 +116,9 @@ public class PetRepository {
         }
     }
 
-    public void delete(long petId) {
+    @CacheInvalidate(cacheName = "pets")
+    @CacheInvalidateAll(cacheName = "inventory")
+    public void delete(@CacheKey long petId) {
         try (Connection conn = dataSource.getConnection()) {
             try (PreparedStatement ps = conn.prepareStatement("DELETE FROM pet WHERE \"id\" = ?")) {
                 ps.setLong(1, petId);
@@ -171,7 +181,8 @@ public class PetRepository {
         }
     }
 
-    public void updateWithForm(long petId, String name, String status) {
+    @CacheInvalidate(cacheName = "pets")
+    public void updateWithForm(@CacheKey long petId, String name, String status) {
         if (name == null && status == null) {
             return;
         }
@@ -214,7 +225,7 @@ public class PetRepository {
             }
             String sql =
                 "INSERT INTO pet_photo (\"id\", pet_id, content_type, metadata, content) " +
-                "VALUES ((SELECT COALESCE(MAX(\"id\"), 0) + 1 FROM pet_photo), ?, ?, ?, ?)" +
+                "VALUES (nextval('pet_photo_id_seq'), ?, ?, ?, ?)" +
                 " ON CONFLICT (id) DO UPDATE SET pet_id=EXCLUDED.pet_id," +
                 " content_type=EXCLUDED.content_type, metadata=EXCLUDED.metadata," +
                 " content=EXCLUDED.content";
@@ -234,6 +245,7 @@ public class PetRepository {
         }
     }
 
+    @CacheResult(cacheName = "inventory")
     public Map<String, Integer> getInventory() {
         try (Connection conn = dataSource.getConnection()) {
             String sql = "SELECT status::text, cast(COUNT(*) as int) FROM pet GROUP BY status";

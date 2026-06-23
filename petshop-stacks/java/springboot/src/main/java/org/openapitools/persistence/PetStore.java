@@ -8,6 +8,10 @@ import org.openapitools.model.Pet;
 import org.openapitools.model.Tag;
 import org.openapitools.model.User;
 import org.postgresql.util.PGobject;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -40,6 +44,10 @@ public class PetStore {
     // Pet
     // -----------------------------------------------------------------------
 
+    @Caching(
+        put    = @CachePut(value = "pets", key = "#result.id"),
+        evict  = @CacheEvict(value = "inventory", allEntries = true)
+    )
     public Pet createPet(Pet pet) {
         validatePet(pet);
         if (pet.getId() == null || pet.getId() == 0) {
@@ -48,15 +56,31 @@ public class PetStore {
         return upsertPet(pet);
     }
 
+    @Caching(
+        put   = @CachePut(value = "pets", key = "#result.id"),
+        evict = @CacheEvict(value = "inventory", allEntries = true)
+    )
     public Pet updatePet(Pet pet) {
         if (pet.getId() == null || pet.getId() == 0) {
             throw new InvalidInputException("pet id is required for update");
         }
         validatePet(pet);
-        getPetById(pet.getId()); // throws NotFoundException if missing
-        return upsertPet(pet);
+        String statusValue = pet.getStatus() != null ? pet.getStatus().getValue() : null;
+        int rows = jdbc.update(
+                "UPDATE pet SET name = ?, category = ?, photo_urls = ?, tags = ?, status = ? WHERE id = ?",
+                pet.getName(),
+                pgJson(pet.getCategory()),
+                pgJson(pet.getPhotoUrls()),
+                pgJson(pet.getTags()),
+                pgEnum("pet_status", statusValue),
+                pet.getId());
+        if (rows == 0) {
+            throw new NotFoundException("pet " + pet.getId() + " not found");
+        }
+        return pet;
     }
 
+    @Cacheable(value = "pets", key = "#id")
     public Pet getPetById(long id) {
         try {
             return jdbc.queryForObject(
@@ -67,6 +91,10 @@ public class PetStore {
         }
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "pets",      key = "#id"),
+        @CacheEvict(value = "inventory", allEntries = true)
+    })
     public boolean deletePet(long id) {
         return jdbc.update("DELETE FROM pet WHERE id = ?", id) > 0;
     }
@@ -92,6 +120,7 @@ public class PetStore {
         return jdbc.query(sql, PET_MAPPER, cleaned.toArray());
     }
 
+    @CacheEvict(value = "pets", key = "#id")
     public boolean updatePetFields(long id, String name, String status) {
         if (name == null && status == null) {
             getPetById(id); // verify exists
@@ -128,6 +157,7 @@ public class PetStore {
         return data.length;
     }
 
+    @Cacheable(value = "inventory", key = "'all'")
     public Map<String, Integer> inventory() {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT status::text, COUNT(*) AS cnt FROM pet WHERE status IS NOT NULL GROUP BY status ORDER BY status");
@@ -238,6 +268,10 @@ public class PetStore {
     // Internal helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Upserts the pet and returns the input object directly — the caller already
+     * has all the data that was written, so a re-read is unnecessary.
+     */
     private Pet upsertPet(Pet pet) {
         String statusValue = pet.getStatus() != null ? pet.getStatus().getValue() : null;
         jdbc.update(
@@ -255,9 +289,12 @@ public class PetStore {
                 pgJson(pet.getPhotoUrls()),
                 pgJson(pet.getTags()),
                 pgEnum("pet_status", statusValue));
-        return getPetById(pet.getId());
+        return pet;
     }
 
+    /**
+     * Upserts the order and returns the input object directly.
+     */
     private Order upsertOrder(Order order) {
         String statusValue = order.getStatus() != null ? order.getStatus().getValue() : null;
         Timestamp shipDate = order.getShipDate() != null
@@ -277,9 +314,12 @@ public class PetStore {
                 shipDate,
                 pgEnum("order_status", statusValue),
                 order.getComplete());
-        return getOrderById(order.getId());
+        return order;
     }
 
+    /**
+     * Upserts the user and returns the input object directly.
+     */
     private User upsertUser(User user) {
         jdbc.update(
                 "INSERT INTO \"user\" (id, username, first_name, last_name, email, password, phone, user_status)"
@@ -294,7 +334,7 @@ public class PetStore {
                         + "     user_status = EXCLUDED.user_status",
                 user.getId(), user.getUsername(), user.getFirstName(), user.getLastName(),
                 user.getEmail(), user.getPassword(), user.getPhone(), user.getUserStatus());
-        return getUserByUsername(user.getUsername());
+        return user;
     }
 
     private long nextId(String table) {

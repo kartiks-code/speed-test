@@ -67,6 +67,7 @@ petshop-stacks/nodejs/express/
 │   └── UserService.js
 ├── db/                       # persistence layer
 │   ├── pool.js               # pg.Pool singleton
+│   ├── cache.js              # in-process TTL cache (inventory + findByStatus)
 │   ├── petRepository.js      # pet table CRUD + inventory
 │   ├── orderRepository.js    # order table CRUD
 │   └── userRepository.js     # user table CRUD + auth
@@ -80,10 +81,13 @@ petshop-stacks/nodejs/express/
 
 - All business logic lives in `services/` and `db/`. Controllers are generated and should not need changes.
 - `services/index.js` and `controllers/index.js` export the service/controller classes — do not let codegen overwrite them once the DB wiring is in place.
+- Service functions are plain `async` functions (not `new Promise(async executor)` — that anti-pattern was removed). They return `Service.successResponse(...)` or throw `Service.rejectResponse(...)`.
 - Repositories throw plain `Error` objects with a `.status` property (404, 400, etc.) which the services map to `Service.rejectResponse(msg, status)`.
 - The `pg` node-postgres driver is used directly (no ORM). SQL mirrors the Helidon sibling server in `../../java/helidon/`.
 - `photo_urls` and `tags` are stored as JSON columns. `category` on `pet` is also a JSON string. Enums (`pet_status`, `order_status`) are cast explicitly in SQL.
-- `pet.id` and `order.id` are generated server-side from a monotonic counter seeded at startup if absent in the request.
+- `pet.id` and `order.id` are assigned using `COALESCE($1::bigint, nextval('..._id_seq'))` in the INSERT with `RETURNING "id"` — a single query regardless of whether the caller supplies an id.
+- `addPhoto` uses a single `INSERT ... SELECT ... FROM pet WHERE "id" = $1` query — the insert only proceeds if the pet exists, eliminating the previous two-query check-then-insert pattern.
+- `petRepository` maintains an in-process TTL cache (`db/cache.js`) for `getInventory` (5 s TTL) and `findByStatus` per-status (3 s TTL). All writes (`add`, `update`, `deletePet`, `updateWithForm`) call `invalidatePetCache()` to clear it. Call `cache.clearAll()` in test `beforeEach` hooks to prevent cache bleed between tests.
 - `uploadFile` persists the raw request body (parsed via the `application/octet-stream` body parser) to the `pet_photo` table through `petRepository.addPhoto`; `logoutUser` requires no DB interaction.
 
 ## Mutation Testing

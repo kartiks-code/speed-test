@@ -54,7 +54,8 @@ public class DataSourceProvider {
     @PostConstruct
     void init() {
         HikariConfig cfg = new HikariConfig();
-        cfg.setJdbcUrl("jdbc:postgresql://" + host + ":" + port + "/" + dbName);
+        cfg.setJdbcUrl("jdbc:postgresql://" + host + ":" + port + "/" + dbName
+                + "?prepareThreshold=1&preparedStatementCacheQueries=256&preparedStatementCacheSizeMiB=5&reWriteBatchedInserts=true");
         cfg.setUsername(user);
         cfg.setPassword(password);
         cfg.setMaximumPoolSize(maximumPoolSize);

@@ -6,6 +6,7 @@
 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
@@ -30,9 +31,9 @@ namespace Petstore.Controllers
         [Route("/api/v3/store/order/{orderId}")]
         [ValidateModelState]
         [SwaggerOperation("DeleteOrder")]
-        public virtual IActionResult DeleteOrder([FromRoute(Name = "orderId")][Required] long orderId)
+        public virtual async Task<IActionResult> DeleteOrder([FromRoute(Name = "orderId")][Required] long orderId)
         {
-            var found = _repo.DeleteOrder(orderId);
+            var found = await _repo.DeleteOrder(orderId);
             return found ? StatusCode(200) : NotFound();
         }
 
@@ -43,9 +44,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("GetInventory")]
         [SwaggerResponse(statusCode: 200, type: typeof(Dictionary<string, int>), description: "successful operation")]
-        public virtual IActionResult GetInventory()
+        public virtual async Task<IActionResult> GetInventory()
         {
-            var result = _repo.GetInventory();
+            var result = await _repo.GetInventory();
             return new ObjectResult(result);
         }
 
@@ -55,9 +56,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("GetOrderById")]
         [SwaggerResponse(statusCode: 200, type: typeof(Order), description: "successful operation")]
-        public virtual IActionResult GetOrderById([FromRoute(Name = "orderId")][Required] long orderId)
+        public virtual async Task<IActionResult> GetOrderById([FromRoute(Name = "orderId")][Required] long orderId)
         {
-            var order = _repo.GetOrderById(orderId);
+            var order = await _repo.GetOrderById(orderId);
             return order == null ? NotFound() : new ObjectResult(order);
         }
 
@@ -68,9 +69,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("PlaceOrder")]
         [SwaggerResponse(statusCode: 200, type: typeof(Order), description: "successful operation")]
-        public virtual IActionResult PlaceOrder([FromBody] Order order)
+        public virtual async Task<IActionResult> PlaceOrder([FromBody] Order order)
         {
-            var result = _repo.PlaceOrder(order);
+            var result = await _repo.PlaceOrder(order);
             return new ObjectResult(result);
         }
     }

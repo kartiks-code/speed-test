@@ -19,8 +19,4 @@ const logger = createLogger({
     ],
 });
 
-if (!isProduction) {
-  logger.add(new transports.Console({ format: format.simple() }));
-}
-
 module.exports = logger;

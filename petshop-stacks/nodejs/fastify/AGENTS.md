@@ -48,16 +48,18 @@ docker compose up -d
 ```
 petshop-stacks/nodejs/fastify/
 ├── index.js              # entry point: starts the Fastify server
+├── cluster.js            # optional multi-process entry (WEB_CONCURRENCY)
 ├── server.js             # app factory: buildApp() creates and configures Fastify
 ├── db/
 │   ├── pool.js           # pg.Pool singleton + query() helper
-│   ├── petRepository.js  # pet table CRUD + inventory; uses nextval() for IDs
-│   ├── orderRepository.js # order table CRUD; uses nextval() for IDs
+│   ├── cache.js          # in-process TTL cache (inventory + findByStatus)
+│   ├── petRepository.js  # pet table CRUD + inventory; COALESCE id + RETURNING
+│   ├── orderRepository.js # order table CRUD; COALESCE id + RETURNING
 │   └── userRepository.js  # user table CRUD + authentication
 ├── routes/
 │   ├── pet.js            # Fastify plugin: /api/v3/pet/* routes
 │   ├── store.js          # Fastify plugin: /api/v3/store/* routes
-│   └── user.js           # Fastify plugin: /api/v3/user/* routes
+│   └── user.js           # Fastify plugin: /api/v3/user/* routes (createWithList uses Promise.all)
 ├── test/
 │   ├── helpers.js        # expectRejection utility
 │   └── db/
@@ -66,20 +68,34 @@ petshop-stacks/nodejs/fastify/
 │       └── userRepository.test.js
 ├── stryker.config.json
 ├── Dockerfile            # naive: node:20
-├── Dockerfile.optimized  # multi-stage: node:22-alpine, non-root user
+├── Dockerfile.optimized  # multi-stage: node:22-alpine, WEB_CONCURRENCY=2, cluster.js
 └── .dockerignore
 ```
+
+## Tuning environment variables
+
+| Variable | Default | Effect |
+|---|---|---|
+| `WEB_CONCURRENCY` | `1` | `cluster.js` forks this many workers and respawns dead ones; `1` runs in-process |
+| `PG_POOL_MAX` | unset (pg default 10) | Max pool connections per process |
+| `PG_POOL_IDLE_TIMEOUT_MS` | unset (pg default 10000ms) | `idleTimeoutMillis` for the pool |
+| `PORT` | `8080` | HTTP listen port |
+
+The `Dockerfile.optimized` sets `WEB_CONCURRENCY=2 PG_POOL_MAX=100 NODE_ENV=production` and starts via `node cluster.js`.
 
 ## Conventions
 
 - All route registrations follow Fastify plugin pattern (async functions accepting `fastify` instance).
 - Static routes (`/pet/findByStatus`, `/pet/findByTags`, `/user/login`, `/user/logout`) are registered **before** parameterized routes (`/pet/:petId`, `/user/:username`) within each plugin.
 - `db/pool.js` exports both `pool` (the `pg.Pool` instance) and `query` (a wrapper) — tests stub `pool.query` via Sinon.
-- Repositories use PostgreSQL sequences for server-assigned IDs: `nextval('pet_id_seq')`, `nextval('order_id_seq')`, `nextval('pet_photo_id_seq')`.
+- `pet.id` and `order.id` are assigned using `COALESCE($1::bigint, nextval('..._id_seq'))` in the INSERT with `RETURNING "id"` — a single query regardless of whether the caller supplies an id.
+- `addPhoto` uses a single `INSERT ... SELECT ... FROM pet WHERE "id" = $1` query — the insert only proceeds if the pet exists, eliminating the previous two-query check-then-insert pattern.
+- `petRepository` maintains an in-process TTL cache (`db/cache.js`) for `getInventory` (5 s TTL) and `findByStatus` per-status (3 s TTL). All writes call `invalidatePetCache()`. Call `cache.clearAll()` in test `beforeEach` hooks.
 - `pet.status` and `order.status` are PostgreSQL enum types; written with explicit casts (`cast($N as pet_status)`, `cast($N as order_status)`), read back as `::text`.
 - `category`, `photo_urls`, `tags` are JSON columns; serialized to strings before write, `mapRow` handles both pre-parsed objects and raw JSON strings on read.
 - `uploadFile` stores raw request bytes (`application/octet-stream`, parsed as Buffer) into `pet_photo.content` (BYTEA).
 - `logoutUser` is a stateless no-op returning 200.
+- `POST /user/createWithList` creates all users concurrently via `Promise.all`.
 
 ## Common Commands
 

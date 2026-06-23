@@ -112,13 +112,10 @@ class PetStoreTest {
 
         when(jdbc.queryForObject("SELECT nextval('pet_id_seq')", Long.class))
                 .thenReturn(5L);
-        Pet stored = new Pet().id(5L).name("Fido");
-        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(5L)))
-                .thenReturn(stored);
 
         Pet result = store().createPet(pet);
 
-        assertThat(result).isSameAs(stored);
+        assertThat(result).isSameAs(pet);
         assertThat(pet.getId()).isEqualTo(5L);
 
         ArgumentCaptor<Object> args = ArgumentCaptor.forClass(Object.class);
@@ -392,14 +389,13 @@ class PetStoreTest {
 
     @Test
     void placeOrderReturnsStoredOrder() {
-        Order expected = new Order().id(10L);
         when(jdbc.queryForObject("SELECT nextval('order_id_seq')", Long.class)).thenReturn(10L);
-        when(jdbc.queryForObject(startsWith("SELECT id, pet_id"), any(RowMapper.class), eq(10L)))
-                .thenReturn(expected);
 
-        Order result = store().placeOrder(new Order());
+        Order order = new Order();
+        Order result = store().placeOrder(order);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result).isSameAs(order);
+        assertThat(result.getId()).isEqualTo(10L);
     }
 
     @Test
@@ -434,12 +430,10 @@ class PetStoreTest {
         // would NPE when status is null (tries to call null.getValue()).
         Pet pet = new Pet().name("Nemo").photoUrls(List.of("http://x/1.jpg"));
         when(jdbc.queryForObject("SELECT nextval('pet_id_seq')", Long.class)).thenReturn(1L);
-        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(1L)))
-                .thenReturn(new Pet().id(1L));
 
         Pet result = store().createPet(pet);
 
-        assertThat(result).isNotNull();
+        assertThat(result).isSameAs(pet);
     }
 
     // ---------------------------------------------------------------------
@@ -493,22 +487,18 @@ class PetStoreTest {
 
     @Test
     void updatePetSuccessReturnsPet() {
-        Pet existing = new Pet().id(10L).name("Fido").photoUrls(List.of("http://x/1.jpg"));
-        Pet stored = new Pet().id(10L).name("NewName").photoUrls(List.of("http://x/2.jpg"));
-        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(10L)))
-                .thenReturn(existing)   // first call: existence check in updatePet
-                .thenReturn(stored);    // second call: read-back inside upsertPet
+        when(jdbc.update(startsWith("UPDATE pet SET"), any(Object[].class))).thenReturn(1);
 
         Pet pet = new Pet().id(10L).name("NewName").photoUrls(List.of("http://x/2.jpg"));
         Pet result = store().updatePet(pet);
 
-        assertThat(result).isSameAs(stored);
+        assertThat(result).isSameAs(pet);
+        verify(jdbc).update(startsWith("UPDATE pet SET"), any(Object[].class));
     }
 
     @Test
     void updatePetThrowsNotFoundWhenPetMissing() {
-        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(99L)))
-                .thenThrow(new EmptyResultDataAccessException(1));
+        when(jdbc.update(startsWith("UPDATE pet SET"), any(Object[].class))).thenReturn(0);
 
         Pet pet = new Pet().id(99L).name("Ghost").photoUrls(List.of("http://x/1.jpg"));
         assertThatThrownBy(() -> store().updatePet(pet))
@@ -522,14 +512,10 @@ class PetStoreTest {
 
     @Test
     void createPetWithExistingIdDoesNotGenerateNewId() {
-        Pet stored = new Pet().id(99L).name("Buddy");
-        when(jdbc.queryForObject(startsWith("SELECT id, name, category"), any(RowMapper.class), eq(99L)))
-                .thenReturn(stored);
-
         Pet pet = new Pet().id(99L).name("Buddy").photoUrls(List.of("http://x/1.jpg"));
         Pet result = store().createPet(pet);
 
-        assertThat(result).isSameAs(stored);
+        assertThat(result).isSameAs(pet);
         assertThat(pet.getId()).isEqualTo(99L);
         verify(jdbc, never()).queryForObject("SELECT nextval('pet_id_seq')", Long.class);
     }
@@ -601,14 +587,10 @@ class PetStoreTest {
 
     @Test
     void placeOrderWithExistingIdDoesNotGenerateNewId() {
-        Order existing = new Order().id(5L);
-        when(jdbc.queryForObject(startsWith("SELECT id, pet_id"), any(RowMapper.class), eq(5L)))
-                .thenReturn(existing);
-
         Order order = new Order().id(5L).status(Order.StatusEnum.PLACED);
         Order result = store().placeOrder(order);
 
-        assertThat(result).isSameAs(existing);
+        assertThat(result).isSameAs(order);
         verify(jdbc, never()).queryForObject("SELECT nextval('order_id_seq')", Long.class);
     }
 
@@ -634,43 +616,33 @@ class PetStoreTest {
 
     @Test
     void createUserGeneratesIdAndReturnsUser() {
-        User expected = new User().id(20L).username("bob");
         when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class)).thenReturn(20L);
-        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("bob")))
-                .thenReturn(expected);
 
         User user = new User().username("bob");
         User result = store().createUser(user);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result).isSameAs(user);
         assertThat(user.getId()).isEqualTo(20L);
     }
 
     @Test
     void createUserWithExistingIdDoesNotGenerateNewId() {
-        User expected = new User().id(5L).username("alice");
-        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("alice")))
-                .thenReturn(expected);
-
         User user = new User().id(5L).username("alice");
         User result = store().createUser(user);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result).isSameAs(user);
         verify(jdbc, never()).queryForObject("SELECT nextval('user_id_seq')", Long.class);
     }
 
     @Test
     void createUserWithZeroIdGeneratesNewId() {
-        User expected = new User().id(7L).username("carol");
         when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class)).thenReturn(7L);
-        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("carol")))
-                .thenReturn(expected);
 
         User user = new User().id(0L).username("carol");
         User result = store().createUser(user);
 
         assertThat(user.getId()).isEqualTo(7L);
-        assertThat(result).isSameAs(expected);
+        assertThat(result).isSameAs(user);
     }
 
     // ---------------------------------------------------------------------
@@ -681,19 +653,15 @@ class PetStoreTest {
     void createUsersReturnsLastUser() {
         User u1 = new User().username("u1");
         User u2 = new User().username("u2");
-        User stored1 = new User().id(1L).username("u1");
-        User stored2 = new User().id(2L).username("u2");
 
         when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class))
                 .thenReturn(1L).thenReturn(2L);
-        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("u1")))
-                .thenReturn(stored1);
-        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("u2")))
-                .thenReturn(stored2);
 
         User result = store().createUsers(List.of(u1, u2));
 
-        assertThat(result).isSameAs(stored2);
+        assertThat(result).isSameAs(u2);
+        assertThat(u1.getId()).isEqualTo(1L);
+        assertThat(u2.getId()).isEqualTo(2L);
     }
 
     @Test
@@ -706,13 +674,10 @@ class PetStoreTest {
     @Test
     void createUsersWithExistingIdDoesNotGenerateNewId() {
         User u1 = new User().id(5L).username("u1");
-        User stored = new User().id(5L).username("u1");
-        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("u1")))
-                .thenReturn(stored);
 
         User result = store().createUsers(List.of(u1));
 
-        assertThat(result).isSameAs(stored);
+        assertThat(result).isSameAs(u1);
         verify(jdbc, never()).queryForObject(startsWith("SELECT nextval"), any(Class.class));
     }
 
@@ -811,8 +776,6 @@ class PetStoreTest {
         // Kills the "removed call to User::setId" survivor in createUsers.
         User u = new User().username("x1");
         when(jdbc.queryForObject("SELECT nextval('user_id_seq')", Long.class)).thenReturn(100L);
-        when(jdbc.queryForObject(startsWith("SELECT id, username"), any(RowMapper.class), eq("x1")))
-                .thenReturn(new User().id(100L).username("x1"));
 
         store().createUsers(List.of(u));
 

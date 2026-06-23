@@ -19,7 +19,7 @@ describe('orderRepository', () => {
 
   describe('place', () => {
     it('casts order_status, converts shipDate to a Date, and echoes the order', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+      queryStub.resolves({ rows: [{ id: '100' }], rowCount: 1 });
       const order = {
         id: 100,
         petId: 5,
@@ -33,7 +33,9 @@ describe('orderRepository', () => {
 
       const [text, params] = queryStub.firstCall.args;
       expect(sql(text)).to.contain('INSERT INTO "order"');
+      expect(sql(text)).to.contain('COALESCE($1::bigint, nextval(\'order_id_seq\'))');
       expect(sql(text)).to.contain('cast($5 as order_status)');
+      expect(sql(text)).to.contain('RETURNING');
       expect(params[0]).to.equal(100);
       expect(params[1]).to.equal(5);
       expect(params[2]).to.equal(2);
@@ -44,14 +46,17 @@ describe('orderRepository', () => {
       expect(result).to.deep.equal(order);
     });
 
-    it('generates an id and nulls optional fields when omitted', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+    it('generates a server-side id via nextval and nulls optional fields when omitted', async () => {
+      queryStub.resolves({ rows: [{ id: '77' }], rowCount: 1 });
 
       const result = await orderRepo.place({});
 
+      // Single query — COALESCE handles id assignment in SQL.
+      expect(queryStub.callCount).to.equal(1);
+      expect(result.id).to.equal(77);
       const params = queryStub.firstCall.args[1];
-      expect(result.id).to.be.a('number');
-      expect(params[0]).to.equal(result.id);
+      // $1 is null when no id is provided — PostgreSQL resolves via nextval.
+      expect(params[0]).to.equal(null);
       expect(params[1]).to.equal(null); // petId
       expect(params[2]).to.equal(null); // quantity
       expect(params[3]).to.equal(null); // shipDate
@@ -122,13 +127,15 @@ describe('orderRepository', () => {
   });
 
   describe('place id generation', () => {
-    it('increments the id counter on consecutive calls', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+    it('returns the id assigned by PostgreSQL via RETURNING', async () => {
+      queryStub.onFirstCall().resolves({ rows: [{ id: '55' }], rowCount: 1 });
+      queryStub.onSecondCall().resolves({ rows: [{ id: '56' }], rowCount: 1 });
 
       const first = await orderRepo.place({});
       const second = await orderRepo.place({});
 
-      expect(second.id).to.equal(first.id + 1);
+      expect(first.id).to.equal(55);
+      expect(second.id).to.equal(56);
     });
   });
 

@@ -6,6 +6,7 @@
 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using Petstore.Attributes;
@@ -31,9 +32,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("CreateUser")]
         [SwaggerResponse(statusCode: 200, type: typeof(User), description: "Successful operation")]
-        public virtual IActionResult CreateUser([FromBody] User user)
+        public virtual async Task<IActionResult> CreateUser([FromBody] User user)
         {
-            var result = _repo.CreateUser(user);
+            var result = await _repo.CreateUser(user);
             return new ObjectResult(result);
         }
 
@@ -44,9 +45,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("CreateUsersWithListInput")]
         [SwaggerResponse(statusCode: 200, type: typeof(User), description: "Successful operation")]
-        public virtual IActionResult CreateUsersWithListInput([FromBody] List<User> user)
+        public virtual async Task<IActionResult> CreateUsersWithListInput([FromBody] List<User> user)
         {
-            var result = _repo.CreateUsersWithListInput(user);
+            var result = await _repo.CreateUsersWithListInput(user);
             return result == null ? StatusCode(200) : new ObjectResult(result);
         }
 
@@ -55,9 +56,9 @@ namespace Petstore.Controllers
         [Route("/api/v3/user/{username}")]
         [ValidateModelState]
         [SwaggerOperation("DeleteUser")]
-        public virtual IActionResult DeleteUser([FromRoute(Name = "username")][Required] string username)
+        public virtual async Task<IActionResult> DeleteUser([FromRoute(Name = "username")][Required] string username)
         {
-            var found = _repo.DeleteUser(username);
+            var found = await _repo.DeleteUser(username);
             return found ? StatusCode(200) : NotFound();
         }
 
@@ -67,9 +68,9 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("GetUserByName")]
         [SwaggerResponse(statusCode: 200, type: typeof(User), description: "successful operation")]
-        public virtual IActionResult GetUserByName([FromRoute(Name = "username")][Required] string username)
+        public virtual async Task<IActionResult> GetUserByName([FromRoute(Name = "username")][Required] string username)
         {
-            var user = _repo.GetUserByName(username);
+            var user = await _repo.GetUserByName(username);
             return user == null ? NotFound() : new ObjectResult(user);
         }
 
@@ -79,11 +80,11 @@ namespace Petstore.Controllers
         [ValidateModelState]
         [SwaggerOperation("LoginUser")]
         [SwaggerResponse(statusCode: 200, type: typeof(string), description: "successful operation")]
-        public virtual IActionResult LoginUser(
+        public virtual async Task<IActionResult> LoginUser(
             [FromQuery(Name = "username")] string username,
             [FromQuery(Name = "password")] string password)
         {
-            var token = _repo.LoginUser(username, password);
+            var token = await _repo.LoginUser(username, password);
             return new ObjectResult(token);
         }
 
@@ -92,9 +93,9 @@ namespace Petstore.Controllers
         [Route("/api/v3/user/logout")]
         [ValidateModelState]
         [SwaggerOperation("LogoutUser")]
-        public virtual IActionResult LogoutUser()
+        public virtual async Task<IActionResult> LogoutUser()
         {
-            _repo.LogoutUser();
+            await _repo.LogoutUser();
             return StatusCode(200);
         }
 
@@ -104,11 +105,11 @@ namespace Petstore.Controllers
         [Consumes("application/json", "application/xml", "application/x-www-form-urlencoded")]
         [ValidateModelState]
         [SwaggerOperation("UpdateUser")]
-        public virtual IActionResult UpdateUser(
+        public virtual async Task<IActionResult> UpdateUser(
             [FromRoute(Name = "username")][Required] string username,
             [FromBody] User user)
         {
-            _repo.UpdateUser(username, user);
+            await _repo.UpdateUser(username, user);
             return StatusCode(200);
         }
     }

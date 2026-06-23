@@ -1,7 +1,7 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Petstore.Models;
 
@@ -18,7 +18,7 @@ namespace Petstore.Repositories
 
         // ══════════════════════ PET OPERATIONS ════════════════════════
 
-        public Pet AddPet(Pet pet)
+        public Task<Pet> AddPet(Pet pet)
         {
             if (pet.Id == 0)
                 pet.Id = _nextPetId++;
@@ -26,95 +26,100 @@ namespace Petstore.Repositories
                 _nextPetId = pet.Id + 1;
 
             _pets[pet.Id] = Clone(pet);
-            return Clone(_pets[pet.Id]);
+            return Task.FromResult(Clone(_pets[pet.Id]));
         }
 
-        public bool DeletePet(long petId)
+        public Task<bool> DeletePet(long petId)
         {
-            return _pets.Remove(petId);
+            return Task.FromResult(_pets.Remove(petId));
         }
 
-        public List<Pet> FindPetsByStatus(string status)
+        public Task<List<Pet>> FindPetsByStatus(string status)
         {
             if (string.IsNullOrEmpty(status))
-                return _pets.Values.Select(Clone).ToList();
+                return Task.FromResult(_pets.Values.Select(Clone).ToList());
 
-            return _pets.Values
-                .Where(p => PetStatusToString(p.Status) == status)
-                .Select(Clone)
-                .ToList();
+            return Task.FromResult(
+                _pets.Values
+                    .Where(p => PetStatusToString(p.Status) == status)
+                    .Select(Clone)
+                    .ToList());
         }
 
-        public List<Pet> FindPetsByTags(List<string> tags)
+        public Task<List<Pet>> FindPetsByTags(List<string> tags)
         {
             if (tags == null || tags.Count == 0)
-                return _pets.Values.Select(Clone).ToList();
+                return Task.FromResult(_pets.Values.Select(Clone).ToList());
 
-            return _pets.Values
-                .Where(p => p.Tags != null && p.Tags.Any(t => tags.Contains(t.Name)))
-                .Select(Clone)
-                .ToList();
+            // HashSet for O(1) lookup per tag
+            var tagSet = new HashSet<string>(tags);
+            return Task.FromResult(
+                _pets.Values
+                    .Where(p => p.Tags != null && p.Tags.Any(t => tagSet.Contains(t.Name)))
+                    .Select(Clone)
+                    .ToList());
         }
 
-        public Pet GetPetById(long petId)
+        public Task<Pet> GetPetById(long petId)
         {
-            return _pets.TryGetValue(petId, out var pet) ? Clone(pet) : null;
+            return Task.FromResult(_pets.TryGetValue(petId, out var pet) ? Clone(pet) : null);
         }
 
-        public Pet UpdatePet(Pet pet)
+        public Task<Pet> UpdatePet(Pet pet)
         {
             if (!_pets.ContainsKey(pet.Id))
-                return null;
+                return Task.FromResult<Pet>(null);
             _pets[pet.Id] = Clone(pet);
-            return Clone(_pets[pet.Id]);
+            return Task.FromResult(Clone(_pets[pet.Id]));
         }
 
-        public bool UpdatePetWithForm(long petId, string name, string status)
+        public Task<bool> UpdatePetWithForm(long petId, string name, string status)
         {
             if (!_pets.TryGetValue(petId, out var pet))
-                return false;
+                return Task.FromResult(false);
 
             if (name   != null) pet.Name   = name;
             if (status != null) pet.Status = StringToPetStatus(status);
-            return true;
+            return Task.FromResult(true);
         }
 
-        public ApiResponse UploadFile(long petId, string additionalMetadata, Stream fileData)
+        public Task<ApiResponse> UploadFile(long petId, string additionalMetadata, Stream fileData)
         {
             if (!_pets.ContainsKey(petId))
-                return null;
+                return Task.FromResult<ApiResponse>(null);
 
             using var ms = new MemoryStream();
             fileData.CopyTo(ms);
             var bytes = ms.ToArray();
 
-            return new ApiResponse
+            return Task.FromResult(new ApiResponse
             {
                 Code    = 200,
                 Message = $"File uploaded, {bytes.Length} bytes stored."
-            };
+            });
         }
 
         // ══════════════════════ STORE OPERATIONS ══════════════════════
 
-        public bool DeleteOrder(long orderId)
+        public Task<bool> DeleteOrder(long orderId)
         {
-            return _orders.Remove(orderId);
+            return Task.FromResult(_orders.Remove(orderId));
         }
 
-        public Dictionary<string, int> GetInventory()
+        public Task<Dictionary<string, int>> GetInventory()
         {
-            return _pets.Values
+            var result = _pets.Values
                 .GroupBy(p => PetStatusToString(p.Status) ?? "unknown")
                 .ToDictionary(g => g.Key, g => g.Count());
+            return Task.FromResult(result);
         }
 
-        public Order GetOrderById(long orderId)
+        public Task<Order> GetOrderById(long orderId)
         {
-            return _orders.TryGetValue(orderId, out var order) ? Clone(order) : null;
+            return Task.FromResult(_orders.TryGetValue(orderId, out var order) ? Clone(order) : null);
         }
 
-        public Order PlaceOrder(Order order)
+        public Task<Order> PlaceOrder(Order order)
         {
             if (order.Id == 0)
                 order.Id = _nextOrderId++;
@@ -122,12 +127,12 @@ namespace Petstore.Repositories
                 _nextOrderId = order.Id + 1;
 
             _orders[order.Id] = Clone(order);
-            return Clone(_orders[order.Id]);
+            return Task.FromResult(Clone(_orders[order.Id]));
         }
 
         // ══════════════════════ USER OPERATIONS ═══════════════════════
 
-        public User CreateUser(User user)
+        public Task<User> CreateUser(User user)
         {
             if (user.Id == 0)
                 user.Id = _nextUserId++;
@@ -135,42 +140,43 @@ namespace Petstore.Repositories
                 _nextUserId = user.Id + 1;
 
             _users[user.Username] = Clone(user);
-            return Clone(_users[user.Username]);
+            return Task.FromResult(Clone(_users[user.Username]));
         }
 
-        public User CreateUsersWithListInput(List<User> users)
+        public async Task<User> CreateUsersWithListInput(List<User> users)
         {
             if (users == null || users.Count == 0)
                 return null;
             User last = null;
             foreach (var u in users)
-                last = CreateUser(u);
+                last = await CreateUser(u);
             return last;
         }
 
-        public bool DeleteUser(string username)
+        public Task<bool> DeleteUser(string username)
         {
-            return _users.Remove(username);
+            return Task.FromResult(_users.Remove(username));
         }
 
-        public User GetUserByName(string username)
+        public Task<User> GetUserByName(string username)
         {
-            return _users.TryGetValue(username, out var user) ? Clone(user) : null;
+            return Task.FromResult(_users.TryGetValue(username, out var user) ? Clone(user) : null);
         }
 
-        public string LoginUser(string username, string password)
+        public Task<string> LoginUser(string username, string password)
         {
-            return "logged-in";
+            return Task.FromResult("logged-in");
         }
 
-        public void LogoutUser()
+        public Task LogoutUser()
         {
+            return Task.CompletedTask;
         }
 
-        public bool UpdateUser(string username, User user)
+        public Task<bool> UpdateUser(string username, User user)
         {
             if (!_users.TryGetValue(username, out var existing))
-                return false;
+                return Task.FromResult(false);
 
             existing.FirstName  = user.FirstName;
             existing.LastName   = user.LastName;
@@ -178,7 +184,7 @@ namespace Petstore.Repositories
             existing.Password   = user.Password;
             existing.Phone      = user.Phone;
             existing.UserStatus = user.UserStatus;
-            return true;
+            return Task.FromResult(true);
         }
 
         // ── Helpers ────────────────────────────────────────────────────

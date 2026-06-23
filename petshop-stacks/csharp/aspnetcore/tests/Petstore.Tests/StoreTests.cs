@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Xunit;
 using Petstore.Models;
 using Petstore.Repositories;
@@ -19,116 +20,116 @@ namespace Petstore.Tests
         };
 
         [Fact]
-        public void PlaceOrder_AssignsId_WhenIdIsZero()
+        public async Task PlaceOrder_AssignsId_WhenIdIsZero()
         {
             var repo = CreateRepo();
-            var result = repo.PlaceOrder(SampleOrder(0));
+            var result = await repo.PlaceOrder(SampleOrder(0));
             Assert.True(result.Id > 0);
         }
 
         [Fact]
-        public void PlaceOrder_PreservesProvidedId()
+        public async Task PlaceOrder_PreservesProvidedId()
         {
             var repo = CreateRepo();
-            var result = repo.PlaceOrder(SampleOrder(7));
+            var result = await repo.PlaceOrder(SampleOrder(7));
             Assert.Equal(7, result.Id);
         }
 
         [Fact]
-        public void GetOrderById_ReturnsPlacedOrder()
+        public async Task GetOrderById_ReturnsPlacedOrder()
         {
             var repo = CreateRepo();
-            repo.PlaceOrder(SampleOrder(1));
-            var fetched = repo.GetOrderById(1);
+            await repo.PlaceOrder(SampleOrder(1));
+            var fetched = await repo.GetOrderById(1);
             Assert.NotNull(fetched);
             Assert.Equal(Order.StatusEnum.PlacedEnum, fetched.Status);
         }
 
         [Fact]
-        public void GetOrderById_ReturnsNull_WhenNotFound()
+        public async Task GetOrderById_ReturnsNull_WhenNotFound()
         {
             var repo = CreateRepo();
-            Assert.Null(repo.GetOrderById(999));
+            Assert.Null(await repo.GetOrderById(999));
         }
 
         [Fact]
-        public void DeleteOrder_RemovesOrder()
+        public async Task DeleteOrder_RemovesOrder()
         {
             var repo = CreateRepo();
-            repo.PlaceOrder(SampleOrder(5));
-            Assert.True(repo.DeleteOrder(5));
-            Assert.Null(repo.GetOrderById(5));
+            await repo.PlaceOrder(SampleOrder(5));
+            Assert.True(await repo.DeleteOrder(5));
+            Assert.Null(await repo.GetOrderById(5));
         }
 
         [Fact]
-        public void DeleteOrder_ReturnsFalse_WhenNotFound()
+        public async Task DeleteOrder_ReturnsFalse_WhenNotFound()
         {
             var repo = CreateRepo();
-            Assert.False(repo.DeleteOrder(999));
+            Assert.False(await repo.DeleteOrder(999));
         }
 
         [Fact]
-        public void GetInventory_ReflectsCurrentPetStatuses()
+        public async Task GetInventory_ReflectsCurrentPetStatuses()
         {
             var repo = CreateRepo();
-            repo.AddPet(new Pet { Id = 1, Name = "A", PhotoUrls = new List<string>(), Status = Pet.StatusEnum.AvailableEnum });
-            repo.AddPet(new Pet { Id = 2, Name = "B", PhotoUrls = new List<string>(), Status = Pet.StatusEnum.AvailableEnum });
-            repo.AddPet(new Pet { Id = 3, Name = "C", PhotoUrls = new List<string>(), Status = Pet.StatusEnum.SoldEnum });
+            await repo.AddPet(new Pet { Id = 1, Name = "A", PhotoUrls = new List<string>(), Status = Pet.StatusEnum.AvailableEnum });
+            await repo.AddPet(new Pet { Id = 2, Name = "B", PhotoUrls = new List<string>(), Status = Pet.StatusEnum.AvailableEnum });
+            await repo.AddPet(new Pet { Id = 3, Name = "C", PhotoUrls = new List<string>(), Status = Pet.StatusEnum.SoldEnum });
 
-            var inventory = repo.GetInventory();
+            var inventory = await repo.GetInventory();
             Assert.Equal(2, inventory["available"]);
             Assert.Equal(1, inventory["sold"]);
         }
 
         [Fact]
-        public void GetInventory_ReturnsEmpty_WhenNoPets()
+        public async Task GetInventory_ReturnsEmpty_WhenNoPets()
         {
             var repo = CreateRepo();
-            var inventory = repo.GetInventory();
+            var inventory = await repo.GetInventory();
             Assert.NotNull(inventory);
             Assert.Empty(inventory);
         }
 
         [Fact]
-        public void PlaceOrder_UpdatesExistingOrder_OnConflict()
+        public async Task PlaceOrder_UpdatesExistingOrder_OnConflict()
         {
             var repo = CreateRepo();
-            repo.PlaceOrder(SampleOrder(10));
+            await repo.PlaceOrder(SampleOrder(10));
             var updated = SampleOrder(10);
             updated.Quantity = 99;
-            repo.PlaceOrder(updated);
-            Assert.Equal(99, repo.GetOrderById(10).Quantity);
+            await repo.PlaceOrder(updated);
+            Assert.Equal(99, (await repo.GetOrderById(10)).Quantity);
         }
 
         // ── ID sequencing: kills lines 120, 121, 122 mutations ───────────────────
 
         [Fact]
-        public void PlaceOrder_AutoAssignsSequentialIds()
+        public async Task PlaceOrder_AutoAssignsSequentialIds()
         {
             var repo = CreateRepo();
-            var o1 = repo.PlaceOrder(SampleOrder(0));
-            var o2 = repo.PlaceOrder(SampleOrder(0));
+            var o1 = await repo.PlaceOrder(SampleOrder(0));
+            var o2 = await repo.PlaceOrder(SampleOrder(0));
             Assert.Equal(1, o1.Id);
             Assert.Equal(2, o2.Id);
         }
 
         [Fact]
-        public void PlaceOrder_SetsSequenceBeyondExplicitId()
+        public async Task PlaceOrder_SetsSequenceBeyondExplicitId()
         {
             // Kills: line 121 (>= vs > and negation), line 122 (+1 vs -1)
             var repo = CreateRepo();
-            repo.PlaceOrder(SampleOrder(5));
-            var auto = repo.PlaceOrder(SampleOrder(0));
+            await repo.PlaceOrder(SampleOrder(5));
+            var auto = await repo.PlaceOrder(SampleOrder(0));
             Assert.Equal(6, auto.Id);
         }
 
         [Fact]
-        public void PlaceOrder_SetsSequenceWhenExplicitIdEqualsNextId()
+        public async Task PlaceOrder_SetsSequenceWhenExplicitIdEqualsNextId()
         {
             // Kills: line 121 (>= vs >) — only differs when Id == _nextOrderId (both start at 1)
             var repo = CreateRepo();
-            repo.PlaceOrder(SampleOrder(1));
-            var auto = repo.PlaceOrder(SampleOrder(0));
+            await repo.PlaceOrder(SampleOrder(1));
+            var auto = await repo.PlaceOrder(SampleOrder(0));
             Assert.Equal(2, auto.Id);
         }
     }

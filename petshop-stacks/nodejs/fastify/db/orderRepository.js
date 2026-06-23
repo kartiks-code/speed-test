@@ -11,18 +11,14 @@ const mapRow = (row) => ({
 });
 
 const place = async (order) => {
-  let id;
-  if (order.id != null) {
-    id = order.id;
-  } else {
-    const { rows } = await query("SELECT nextval('order_id_seq') AS id");
-    id = Number(rows[0].id);
-  }
-  await query(
+  // COALESCE assigns the sequence id when none is provided, eliminating the
+  // separate SELECT nextval round-trip. RETURNING gives back the actual id used.
+  const { rows } = await query(
     `INSERT INTO "order" ("id", pet_id, quantity, ship_date, status, complete)
-     VALUES ($1, $2, $3, $4, cast($5 as order_status), $6)`,
+     VALUES (COALESCE($1::bigint, nextval('order_id_seq')), $2, $3, $4, cast($5 as order_status), $6)
+     RETURNING "id"`,
     [
-      id,
+      order.id != null ? order.id : null,
       order.petId != null ? order.petId : null,
       order.quantity != null ? order.quantity : null,
       order.shipDate ? new Date(order.shipDate) : null,
@@ -30,7 +26,7 @@ const place = async (order) => {
       order.complete != null ? order.complete : null,
     ],
   );
-  return { ...order, id };
+  return { ...order, id: Number(rows[0].id) };
 };
 
 const findById = async (orderId) => {

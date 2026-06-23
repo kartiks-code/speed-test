@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
@@ -21,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
@@ -30,7 +33,19 @@ public class PetRepository {
     DataSourceProvider dsProvider;
 
     private static final AtomicLong idGen = new AtomicLong(System.currentTimeMillis());
-    private final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    /** Pet-by-ID cache: evicted on update/delete, 10 s write TTL, max 1000 entries. */
+    private final Cache<Long, Pet> petCache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(10, TimeUnit.SECONDS)
+            .build();
+
+    /** Inventory cache: 2 s write TTL so it stays near-correct during writes. */
+    private final Cache<String, Map<String, Integer>> inventoryCache = Caffeine.newBuilder()
+            .maximumSize(1)
+            .expireAfterWrite(2, TimeUnit.SECONDS)
+            .build();
 
     public Pet add(Pet pet) {
         try (Connection conn = dsProvider.get().getConnection()) {
@@ -48,6 +63,8 @@ public class PetRepository {
                 ps.executeUpdate();
             }
             pet.setId(id);
+            petCache.put(id, pet);
+            inventoryCache.invalidateAll();
             return pet;
         } catch (WebApplicationException e) {
             throw e;
@@ -77,6 +94,8 @@ public class PetRepository {
                     throw new WebApplicationException("Pet not found", Response.Status.NOT_FOUND);
                 }
             }
+            petCache.put(pet.getId(), pet);
+            inventoryCache.invalidateAll();
             return pet;
         } catch (WebApplicationException e) {
             throw e;
@@ -87,6 +106,10 @@ public class PetRepository {
     }
 
     public Pet findById(long petId) {
+        Pet cached = petCache.getIfPresent(petId);
+        if (cached != null) {
+            return cached;
+        }
         try (Connection conn = dsProvider.get().getConnection()) {
             String sql =
                 "SELECT \"id\", \"name\", category, photo_urls, tags, status::text " +
@@ -95,7 +118,9 @@ public class PetRepository {
                 ps.setLong(1, petId);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        return mapRow(rs);
+                        Pet pet = mapRow(rs);
+                        petCache.put(petId, pet);
+                        return pet;
                     }
                 }
             }
@@ -109,6 +134,8 @@ public class PetRepository {
     }
 
     public void delete(long petId) {
+        petCache.invalidate(petId);
+        inventoryCache.invalidateAll();
         try (Connection conn = dsProvider.get().getConnection()) {
             try (PreparedStatement ps = conn.prepareStatement("DELETE FROM pet WHERE \"id\" = ?")) {
                 ps.setLong(1, petId);
@@ -172,6 +199,7 @@ public class PetRepository {
     }
 
     public void updateWithForm(long petId, String name, String status) {
+        petCache.invalidate(petId);
         if (name == null && status == null) {
             return;
         }
@@ -214,7 +242,7 @@ public class PetRepository {
             }
             String sql =
                 "INSERT INTO pet_photo (\"id\", pet_id, content_type, metadata, content) " +
-                "VALUES ((SELECT COALESCE(MAX(\"id\"), 0) + 1 FROM pet_photo), ?, ?, ?, ?)" +
+                "VALUES (nextval('pet_photo_id_seq'), ?, ?, ?, ?)" +
                 " ON CONFLICT (id) DO UPDATE SET pet_id=EXCLUDED.pet_id," +
                 " content_type=EXCLUDED.content_type, metadata=EXCLUDED.metadata," +
                 " content=EXCLUDED.content";
@@ -235,6 +263,10 @@ public class PetRepository {
     }
 
     public Map<String, Integer> getInventory() {
+        Map<String, Integer> cached = inventoryCache.getIfPresent("all");
+        if (cached != null) {
+            return cached;
+        }
         try (Connection conn = dsProvider.get().getConnection()) {
             String sql = "SELECT status::text, cast(COUNT(*) as int) FROM pet GROUP BY status";
             try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -246,6 +278,7 @@ public class PetRepository {
                         inventory.put(s, rs.getInt(2));
                     }
                 }
+                inventoryCache.put("all", inventory);
                 return inventory;
             }
         } catch (Exception e) {

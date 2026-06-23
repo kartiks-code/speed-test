@@ -43,8 +43,19 @@ docker compose up -d
 The app uses a **singleton `NpgsqlDataSource`** (one shared connection pool) rather than constructing `NpgsqlConnection` objects from a raw connection string per operation:
 
 - `Startup.ConfigureServices` registers `NpgsqlDataSource.Create(PostgresPetstoreRepository.BuildConnectionString())` as a singleton **via a lazy factory**, and only in the Postgres branch — when `USE_IN_MEMORY_DB=true` no data source is registered or created. Multiplexing is **not** enabled.
-- `PostgresPetstoreRepository` takes the `NpgsqlDataSource` via constructor injection and calls `dataSource.OpenConnection()` per operation (connections are returned to the pool on dispose).
+- `PostgresPetstoreRepository` takes the `NpgsqlDataSource` via constructor injection and calls `dataSource.OpenConnectionAsync()` per operation using `await using` (connections are returned to the pool on dispose).
+- All repository methods are **async** (`Task<T>`) throughout — `IPetstoreRepository`, `PostgresPetstoreRepository`, `InMemoryPetstoreRepository`, and all three controllers — so thread-pool threads are never blocked waiting for I/O.
 - Connection-string construction lives in the public static `PostgresPetstoreRepository.BuildConnectionString()` / `ApplyPoolSize()` helpers (env-var handling above, including `PG_MAX_POOL_SIZE`), keeping it unit-testable without a database.
+
+### Performance optimizations applied
+
+- **Async I/O end-to-end**: every controller action and repository method is `async Task<T>`, using Dapper's `QueryAsync` / `ExecuteAsync` / `QuerySingleAsync` / `QueryFirstOrDefaultAsync` — no thread-pool blocking under load.
+- **Single-round-trip upserts**: `AddPet`, `PlaceOrder`, and `CreateUser` previously did `SELECT nextval(...)` + `INSERT` (two trips). Now a single `INSERT … VALUES (COALESCE(NULLIF(@Id, 0), nextval('…_id_seq')), …) … RETURNING id` handles both the sequence assignment and the upsert in one query.
+- **Single-round-trip updates**: `UpdatePet` previously did `SELECT id` then `UPDATE`. Now a single `UPDATE … WHERE id = @Id` returning the affected row count is used. `UpdatePetWithForm` previously did `SELECT id, name, status` then `UPDATE`; now a single `UPDATE … SET name = COALESCE(@Name, name), status = CASE WHEN @Status IS NULL THEN status ELSE @Status::pet_status END WHERE id = @Id` handles null-preservation in one trip.
+- **SQL-side tag filtering**: `FindPetsByTags` previously fetched all pets and filtered in C#. It now pushes the filter to PostgreSQL using `EXISTS (SELECT 1 FROM json_array_elements(tags) elem WHERE elem->>'name' = ANY(@Tags))`.
+- **Shared connection for batch user inserts**: `CreateUsersWithListInput` opens one connection and reuses it across the loop (helper `InsertUserAsync` accepts a `NpgsqlConnection`).
+- **Single-round-trip file upload**: `UploadFile` previously made three separate DB calls (check pet exists, get next sequence id, insert). Now a single CTE does all three: `WITH check_pet AS (SELECT id FROM pet WHERE id = @PetId), new_id AS (SELECT nextval('pet_photo_id_seq') AS id FROM check_pet) INSERT INTO pet_photo … SELECT … FROM new_id RETURNING id` — returns null rows when the pet does not exist.
+- **Leaner middleware pipeline**: `UseHttpsRedirection`, `UseDefaultFiles`, and `UseStaticFiles` removed — this is a pure API server; those middlewares added per-request overhead for no benefit.
 
 ### Benchmark tuning (`Dockerfile.optimized` only)
 

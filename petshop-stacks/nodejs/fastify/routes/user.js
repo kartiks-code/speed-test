@@ -16,9 +16,8 @@ async function userRoutes(fastify) {
     if (!Array.isArray(users)) {
       return reply.code(400).send({ message: 'Expected array of users' });
     }
-    for (const user of users) {
-      await userRepo.create(user);
-    }
+    // Create all users concurrently instead of sequentially.
+    await Promise.all(users.map((u) => userRepo.create(u)));
     return reply.send(users);
   });
 

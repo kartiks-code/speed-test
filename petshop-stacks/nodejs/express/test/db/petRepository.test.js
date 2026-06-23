@@ -9,6 +9,7 @@ const { expectRejection } = require('../helpers');
 // method intercepts every DB call without a live Postgres connection.
 const poolModule = require('../../db/pool');
 const petRepo = require('../../db/petRepository');
+const cache = require('../../db/cache');
 
 // Normalize whitespace so SQL assertions are resilient to indentation.
 const sql = (q) => q.replace(/\s+/g, ' ').trim();
@@ -17,13 +18,14 @@ describe('petRepository', () => {
   let queryStub;
 
   beforeEach(() => {
+    cache.clearAll();
     queryStub = sinon.stub(poolModule.pool, 'query');
   });
   afterEach(() => sinon.restore());
 
   describe('add', () => {
     it('serializes JSON columns and casts enums, returning the pet with its id', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+      queryStub.resolves({ rows: [{ id: '42' }], rowCount: 1 });
       const pet = {
         id: 42,
         name: 'Rex',
@@ -37,8 +39,10 @@ describe('petRepository', () => {
 
       const [text, params] = queryStub.firstCall.args;
       expect(sql(text)).to.contain('INSERT INTO pet');
+      expect(sql(text)).to.contain('COALESCE($1::bigint, nextval(\'pet_id_seq\'))');
       expect(sql(text)).to.contain('cast($4 as json)');
       expect(sql(text)).to.contain('cast($6 as pet_status)');
+      expect(sql(text)).to.contain('RETURNING');
       expect(params).to.deep.equal([
         42,
         'Rex',
@@ -50,21 +54,23 @@ describe('petRepository', () => {
       expect(result).to.deep.equal(pet);
     });
 
-    it('generates a server-side id when none is supplied', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+    it('generates a server-side id via nextval when none is supplied', async () => {
+      queryStub.onFirstCall().resolves({ rows: [{ id: '101' }], rowCount: 1 });
+      queryStub.onSecondCall().resolves({ rows: [{ id: '102' }], rowCount: 1 });
 
       const first = await petRepo.add({ name: 'A', photoUrls: [] });
       const second = await petRepo.add({ name: 'B', photoUrls: [] });
 
-      expect(first.id).to.be.a('number');
-      expect(second.id).to.be.a('number');
-      // counter is monotonic
-      expect(second.id).to.be.greaterThan(first.id);
-      expect(queryStub.firstCall.args[1][0]).to.equal(first.id);
+      expect(first.id).to.equal(101);
+      expect(second.id).to.equal(102);
+      // Each add is a single query (COALESCE handles id assignment in SQL).
+      expect(queryStub.callCount).to.equal(2);
+      // $1 is null when no id is provided — PostgreSQL resolves via nextval.
+      expect(queryStub.firstCall.args[1][0]).to.equal(null);
     });
 
     it('passes null for absent category/tags/status', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+      queryStub.resolves({ rows: [{ id: '1' }], rowCount: 1 });
 
       await petRepo.add({ id: 1, name: 'Bare', photoUrls: [] });
 
@@ -350,7 +356,8 @@ describe('petRepository', () => {
 
   describe('addPhoto', () => {
     it('throws 404 when the pet does not exist', async () => {
-      queryStub.resolves({ rows: [] });
+      // Single query returns rowCount 0 when no matching pet row exists.
+      queryStub.resolves({ rows: [], rowCount: 0 });
 
       const err = await expectRejection(petRepo.addPhoto(99, Buffer.from('data'), 'image/jpeg', null));
 
@@ -360,38 +367,29 @@ describe('petRepository', () => {
 
     it('inserts the photo and returns the byte count', async () => {
       const content = Buffer.from('photo-data');
-      queryStub.onFirstCall().resolves({ rows: [{ 1: 1 }] });
-      queryStub.onSecondCall().resolves({ rowCount: 1 });
+      queryStub.resolves({ rowCount: 1 });
 
       const size = await petRepo.addPhoto(5, content, 'image/png', 'meta');
 
+      // Single query: INSERT ... SELECT ... FROM pet WHERE id = $1
+      expect(queryStub.callCount).to.equal(1);
       expect(size).to.equal(content.length);
-      const [text, params] = queryStub.secondCall.args;
+      const [text, params] = queryStub.firstCall.args;
       expect(sql(text)).to.contain('INSERT INTO pet_photo');
-      expect(params[0]).to.equal(5);        // petId
+      expect(sql(text)).to.contain("nextval('pet_photo_id_seq')");
+      expect(sql(text)).to.contain('FROM pet WHERE "id" = $1');
+      expect(params[0]).to.equal(5);           // petId
       expect(params[1]).to.equal('image/png'); // contentType
-      expect(params[2]).to.equal('meta');   // metadata
+      expect(params[2]).to.equal('meta');      // metadata
       expect(params[3]).to.deep.equal(content); // content
     });
 
     it('returns 0 when content is null', async () => {
-      queryStub.onFirstCall().resolves({ rows: [{ 1: 1 }] });
-      queryStub.onSecondCall().resolves({ rowCount: 1 });
+      queryStub.resolves({ rowCount: 1 });
 
       const size = await petRepo.addPhoto(5, null, 'image/png', null);
 
       expect(size).to.equal(0);
-    });
-
-    it('checks existence with the correct SQL and pet id', async () => {
-      queryStub.onFirstCall().resolves({ rows: [{ 1: 1 }] });
-      queryStub.onSecondCall().resolves({ rowCount: 1 });
-
-      await petRepo.addPhoto(7, Buffer.from('x'), 'application/octet-stream', null);
-
-      const [existsText, existsParams] = queryStub.firstCall.args;
-      expect(existsText).to.contain('SELECT 1 FROM pet');
-      expect(existsParams).to.deep.equal([7]);
     });
   });
 
@@ -412,6 +410,50 @@ describe('petRepository', () => {
       expect(text).to.contain('cnt');
       expect(params).to.deep.equal([]);
       expect(inventory).to.deep.equal({ available: 3, sold: 1 });
+    });
+
+    it('returns cached value without hitting the DB on repeated calls', async () => {
+      queryStub.resolves({ rows: [{ status: 'available', cnt: 5 }] });
+
+      await petRepo.getInventory();
+      await petRepo.getInventory();
+
+      expect(queryStub.callCount).to.equal(1);
+    });
+  });
+
+  describe('findByStatus caching', () => {
+    it('returns cached pets without hitting the DB on repeated calls', async () => {
+      queryStub.resolves({
+        rows: [{ id: '1', name: 'A', category: null, photo_urls: [], tags: null, status: 'available' }],
+      });
+
+      await petRepo.findByStatus('available');
+      await petRepo.findByStatus('available');
+
+      expect(queryStub.callCount).to.equal(1);
+    });
+
+    it('caches different statuses independently', async () => {
+      queryStub.resolves({ rows: [] });
+
+      await petRepo.findByStatus('available');
+      await petRepo.findByStatus('sold');
+
+      expect(queryStub.callCount).to.equal(2);
+    });
+  });
+
+  describe('cache invalidation', () => {
+    it('invalidates inventory and status caches on add', async () => {
+      queryStub.resolves({ rows: [{ id: '1', status: 'available', cnt: 1 }], rowCount: 1 });
+      await petRepo.getInventory();
+      await petRepo.add({ id: 1, name: 'X', photoUrls: [] });
+      queryStub.resolves({ rows: [{ status: 'available', cnt: 2 }] });
+      await petRepo.getInventory();
+
+      // Three calls: first getInventory, add (with RETURNING), second getInventory.
+      expect(queryStub.callCount).to.equal(3);
     });
   });
 });

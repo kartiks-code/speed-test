@@ -18,28 +18,30 @@ describe('orderRepository', () => {
   afterEach(() => sinon.restore());
 
   describe('place', () => {
-    it('uses nextval for server-assigned id when none provided', async () => {
-      queryStub.onFirstCall().resolves({ rows: [{ id: '77' }] });
-      queryStub.onSecondCall().resolves({ rows: [], rowCount: 1 });
+    it('uses nextval via COALESCE for server-assigned id when none provided', async () => {
+      queryStub.resolves({ rows: [{ id: '77' }], rowCount: 1 });
 
       const result = await orderRepo.place({});
 
-      const [nextvalText] = queryStub.firstCall.args;
-      expect(nextvalText).to.contain("nextval('order_id_seq')");
+      // Single query — COALESCE handles id in SQL.
+      expect(queryStub.callCount).to.equal(1);
+      const [text] = queryStub.firstCall.args;
+      expect(text).to.contain("nextval('order_id_seq')");
       expect(result.id).to.equal(77);
     });
 
-    it('uses provided id without calling nextval', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+    it('uses provided id in a single query', async () => {
+      queryStub.resolves({ rows: [{ id: '100' }], rowCount: 1 });
 
       const result = await orderRepo.place({ id: 100, petId: 5, quantity: 2, status: 'placed', complete: false });
 
       expect(queryStub.callCount).to.equal(1);
       expect(result.id).to.equal(100);
+      expect(queryStub.firstCall.args[1][0]).to.equal(100);
     });
 
     it('casts order_status, converts shipDate to a Date, and echoes the order', async () => {
-      queryStub.resolves({ rows: [], rowCount: 1 });
+      queryStub.resolves({ rows: [{ id: '100' }], rowCount: 1 });
       const order = {
         id: 100,
         petId: 5,
@@ -53,7 +55,9 @@ describe('orderRepository', () => {
 
       const [text, params] = queryStub.firstCall.args;
       expect(sql(text)).to.contain('INSERT INTO "order"');
+      expect(sql(text)).to.contain('COALESCE($1::bigint, nextval(\'order_id_seq\'))');
       expect(sql(text)).to.contain('cast($5 as order_status)');
+      expect(sql(text)).to.contain('RETURNING');
       expect(params[0]).to.equal(100);
       expect(params[1]).to.equal(5);
       expect(params[2]).to.equal(2);
@@ -64,14 +68,16 @@ describe('orderRepository', () => {
       expect(result).to.deep.equal(order);
     });
 
-    it('nulls optional fields when omitted', async () => {
-      queryStub.onFirstCall().resolves({ rows: [{ id: '1' }] });
-      queryStub.onSecondCall().resolves({ rows: [], rowCount: 1 });
+    it('nulls optional fields when omitted and returns sequence-assigned id', async () => {
+      queryStub.resolves({ rows: [{ id: '1' }], rowCount: 1 });
 
       const result = await orderRepo.place({});
 
-      const params = queryStub.secondCall.args[1];
-      expect(result.id).to.be.a('number');
+      expect(queryStub.callCount).to.equal(1);
+      expect(result.id).to.equal(1);
+      const params = queryStub.firstCall.args[1];
+      // $1 is null when no id is provided — PostgreSQL resolves via nextval.
+      expect(params[0]).to.equal(null);
       expect(params[1]).to.equal(null); // petId
       expect(params[2]).to.equal(null); // quantity
       expect(params[3]).to.equal(null); // shipDate

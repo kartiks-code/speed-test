@@ -143,14 +143,10 @@ namespace Petstore
             {
                 app.UseDeveloperExceptionPage();
             }
-            else
-            {
-                app.UseHsts();
-            }
 
-            app.UseHttpsRedirection();
-            app.UseDefaultFiles();
-            app.UseStaticFiles();
+            // UseHttpsRedirection, UseDefaultFiles, and UseStaticFiles are omitted:
+            // this is a pure API server running on HTTP behind a load balancer or
+            // directly in the benchmark harness — none of those middlewares apply.
             app.UseSwagger(c =>
                 {
                     c.RouteTemplate = "openapi/{documentName}/openapi.json";

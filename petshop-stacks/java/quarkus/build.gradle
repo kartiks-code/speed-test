@@ -22,6 +22,8 @@ dependencies {
     // Netty; quarkus.crac.generate=true (set in Dockerfile.crac ENTRYPOINT) triggers
     // Core.checkpointRestore() after startup.  No-op on non-CRaC JDKs.
     implementation 'io.quarkus:quarkus-crac'
+    // Caffeine-backed in-process cache for hot read paths (inventory, findById).
+    implementation 'io.quarkus:quarkus-cache'
 
     testImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
     testImplementation 'io.quarkus:quarkus-junit5'
