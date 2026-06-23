@@ -17,8 +17,8 @@ pub async fn get_inventory(pool: web::Data<PgPool>) -> HttpResponse {
 
     match rows {
         Ok(rows) => {
-            let mut inventory: HashMap<String, i32> = HashMap::new();
-            for row in &rows {
+            let mut inventory: HashMap<String, i32> = HashMap::with_capacity(3);
+            for row in rows {
                 let status: String = row.get("status");
                 let cnt: i32 = row.get("cnt");
                 inventory.insert(status, cnt);

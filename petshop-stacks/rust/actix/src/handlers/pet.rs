@@ -94,23 +94,20 @@ pub async fn find_pets_by_status(
     pool: web::Data<PgPool>,
     query: web::Query<StatusQuery>,
 ) -> HttpResponse {
-    let status_str = query
-        .status
-        .clone()
-        .unwrap_or_else(|| "available".to_string());
+    let status_str = query.status.as_deref().unwrap_or("available");
 
     let rows = sqlx::query(
         r#"SELECT id, name, category, photo_urls::text, tags::text, status::text
            FROM pet WHERE status = $1::pet_status"#,
     )
-    .bind(&status_str)
+    .bind(status_str)
     .fetch_all(pool.get_ref())
     .await;
 
     match rows {
         Ok(rows) => {
             let pets: Vec<Pet> = rows
-                .iter()
+                .into_iter()
                 .map(|row| {
                     row_to_pet(
                         row.get("id"),
@@ -158,7 +155,7 @@ pub async fn find_pets_by_tags(
     match rows {
         Ok(rows) => {
             let pets: Vec<Pet> = rows
-                .iter()
+                .into_iter()
                 .map(|row| {
                     row_to_pet(
                         row.get("id"),
@@ -275,7 +272,8 @@ pub async fn update_pet_with_form(
     form: web::Form<UpdatePetForm>,
 ) -> HttpResponse {
     let pet_id = path.into_inner();
-    let name = form.name.clone();
+    let form = form.into_inner();
+    let name = form.name;
     let status_enum: Option<String> = form.status.as_deref().and_then(|s| {
         s.parse::<crate::models::PetStatus>()
             .ok()
@@ -330,7 +328,7 @@ pub async fn upload_file(
 
     let content: Vec<u8> = body.to_vec();
     let size = content.len();
-    let additional_metadata = query.additional_metadata.clone();
+    let metadata = query.additional_metadata.as_deref();
 
     let result = sqlx::query(
         r#"INSERT INTO pet_photo (id, pet_id, content_type, metadata, content)
@@ -338,14 +336,14 @@ pub async fn upload_file(
     )
     .bind(pet_id)
     .bind("application/octet-stream")
-    .bind(additional_metadata.as_deref())
+    .bind(metadata)
     .bind(&content)
     .execute(pool.get_ref())
     .await;
 
     match result {
         Ok(_) => {
-            let message = match &additional_metadata {
+            let message = match metadata {
                 Some(meta) => format!("File uploaded for pet {pet_id}, {size} bytes ({meta})"),
                 None => format!("File uploaded for pet {pet_id}, {size} bytes"),
             };

@@ -246,7 +246,7 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
         .map_err(|e| ApiError(format!("DB error finding pets by status: {e}")))?;
 
         let pets: Vec<models::Pet> = rows
-            .iter()
+            .into_iter()
             .map(|row| {
                 row_to_pet(
                     row.get("id"),
@@ -295,7 +295,7 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
         .map_err(|e| ApiError(format!("DB error finding pets by tags: {e}")))?;
 
         let pets: Vec<models::Pet> = rows
-            .iter()
+            .into_iter()
             .map(|row| {
                 row_to_pet(
                     row.get("id"),
@@ -516,8 +516,8 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
         .await
         .map_err(|e| ApiError(format!("DB error getting inventory: {e}")))?;
 
-        let mut inventory: HashMap<String, i32> = HashMap::new();
-        for row in &rows {
+        let mut inventory: HashMap<String, i32> = HashMap::with_capacity(3);
+        for row in rows {
             let status: String = row.get("status");
             let cnt: i32 = row.get("cnt");
             inventory.insert(status, cnt);
@@ -726,7 +726,7 @@ impl<C> Api<C> for Server<C> where C: Has<XSpanIdString> + Send + Sync
             .execute(&self.pool)
             .await
             .map_err(|e| ApiError(format!("DB error creating user in list: {e}")))?;
-            last_user = Some(u.clone());
+            last_user = Some(u.clone()); // required: trait passes &Vec, so u is &User
         }
 
         Ok(CreateUsersWithListInputResponse::SuccessfulOperation(last_user.unwrap()))

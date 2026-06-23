@@ -68,7 +68,7 @@ pub async fn create_users_with_list_input(
 
     let mut last_user: Option<User> = None;
 
-    for u in &users {
+    for u in users {
         let result = sqlx::query(
             r#"
             INSERT INTO "user" (id, username, first_name, last_name, email, password, phone, user_status)
@@ -95,7 +95,7 @@ pub async fn create_users_with_list_input(
         .await;
 
         match result {
-            Ok(_) => last_user = Some(u.clone()),
+            Ok(_) => last_user = Some(u),
             Err(e) => {
                 return HttpResponse::InternalServerError()
                     .body(format!("DB error creating user in list: {e}"))
@@ -110,14 +110,14 @@ pub async fn login_user(
     pool: web::Data<PgPool>,
     query: web::Query<LoginQuery>,
 ) -> HttpResponse {
-    let username = match &query.username {
+    let username = match query.username.as_deref() {
         None => return HttpResponse::BadRequest().body("Username is required"),
-        Some(u) => u.clone(),
+        Some(u) => u,
     };
-    let password = query.password.clone().unwrap_or_default();
+    let password = query.password.as_deref().unwrap_or("");
 
     let row = sqlx::query(r#"SELECT password FROM "user" WHERE username = $1"#)
-        .bind(&username)
+        .bind(username)
         .fetch_optional(pool.get_ref())
         .await;
 
@@ -127,7 +127,7 @@ pub async fn login_user(
         }
         Ok(row) => {
             let stored_pw: Option<String> = row.as_ref().and_then(|r| r.get("password"));
-            if row.is_none() || stored_pw.as_deref() != Some(&password) {
+            if stored_pw.as_deref() != Some(password) {
                 return HttpResponse::Unauthorized().body("Invalid username or password");
             }
             let token = format!("logged-in-{username}");
